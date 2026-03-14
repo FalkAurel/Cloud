@@ -1,0 +1,79 @@
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD
+      - MINIO_ROOT_USER=$MINIO_ROOT_USER
+      - BUCKET_NAME=$BUCKET_NAME
+    depends_on:
+      - minio
+      - minio_create_default_bucket
+    networks:
+      - internal_network
+
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    env_file:
+      - .env
+    environment:
+      - MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD
+      - MINIO_ROOT_USER=$MINIO_ROOT_USER
+      - BUCKET_NAME=$BUCKET_NAME
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - internal_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://minio:9000/minio/health/live"]
+      interval: 5s
+      retries: 5
+      start_period: 5s
+      timeout: 3s
+
+  reverse_proxy:
+    build:
+      context: ../reverse_proxy
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+    networks:
+      - internal_network
+    restart: unless-stopped
+
+  minio_create_default_bucket:
+    image: minio/mc
+    env_file:
+      - .env
+    environment:
+      - MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD
+      - MINIO_ROOT_USER=$MINIO_ROOT_USER
+      - BUCKET_NAME=$BUCKET_NAME
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - internal_network
+    entrypoint: >
+      sh -c "mc alias set minio http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD && \
+             mc mb --ignore-existing minio/$BUCKET_NAME"
+
+volumes:
+  minio_data:
+
+networks:
+  internal_network:
+    driver: bridge
