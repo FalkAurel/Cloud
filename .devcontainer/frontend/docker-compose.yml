@@ -1,25 +1,25 @@
 services:
   backend:
     build:
-      context: ../backend
+      context: ../../backend
       dockerfile: Dockerfile
     ports:
       - "5000:5000"
     env_file:
-      - .env
+      - ../.env
     networks:
       - internal_network
 
   frontend:
     build:
-      context: ../frontend
+      context: ../../frontend
       dockerfile: Dockerfile
     ports:
       - "5173:5173"           # Expose Vite dev server
     networks:
       - internal_network
     volumes:
-      - ../frontend:/workspace       # Bind host project folder for live edits
+      - ../../frontend:/workspace       # Bind host project folder for live edits
       - vue-npm-cache:/root/.npm  # Optional: cache npm packages across rebuilds
     tty: true                  # Keep the container interactive for terminal commands
 
@@ -30,7 +30,7 @@ services:
       - "9000:9000"
       - "9001:9001"
     env_file:
-      - .env
+      - ../.env
     environment:
       - MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD
       - MINIO_ROOT_USER=$MINIO_ROOT_USER
@@ -51,7 +51,7 @@ services:
   minio_create_default_bucket:
     image: minio/mc
     env_file:
-      - .env
+      - ../.env
     environment:
       - MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD
       - MINIO_ROOT_USER=$MINIO_ROOT_USER

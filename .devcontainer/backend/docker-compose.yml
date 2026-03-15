@@ -1,0 +1,41 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sleep infinity   # Keep container running
+    volumes:
+      - ../../backend/src:/workspace/src
+      - ../../backend/Cargo.toml:/workspace/Cargo.toml
+      - ../../backend/Cargo.lock:/workspace/Cargo.lock
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../.env
+    tty: true
+    stdin_open: true
+    networks:
+      - backend-network
+
+  minio:
+    image: minio/minio
+    env_file:
+      - ../.env
+    environment:
+      - MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD
+      - MINIO_ROOT_USER=$MINIO_ROOT_USER
+      - BUCKET_NAME=$BUCKET_NAME
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://minio:9000/minio/health/live"]
+      interval: 5s
+      retries: 5
+      start_period: 5s
+      timeout: 3s
+
+networks:
+  backend-network:
+    driver: bridge

@@ -1,0 +1,16 @@
+{
+  "name": "Cloud Dev Container Backend",
+  "dockerComposeFile": ["docker-compose.yml"],
+  "service": "backend",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "vadimcn.vscode-lldb"
+      ]
+    }
+  },
+  "remoteUser": "vscode"
+}

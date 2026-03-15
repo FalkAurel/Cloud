@@ -29,29 +29,40 @@ async function login(): Promise<void> {
 
   {
     let response: AxiosResponse<{ jwt: string; name: string; is_admin: boolean }>
+
     try {
-      await axios.post('/api/login', {
+      response = await axios.post('/api/login', {
         email: email.value,
         password: password.value,
       })
-    } catch (error) {
-      console.error(`Login error: ${error}`)
-      alert('Login failed: network or server error')
-      //return
+    } catch (error: unknown) {
+      let message = 'Login failed: network or server error'
+
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          message = `Login failed: ${error.response.statusText}`
+        } else if (error.message) {
+          message = `Login failed: ${error.message}`
+        }
+      }
+
+      console.error('Login error:', error)
+      alert(message)
+      return
     }
 
-    //if (response.status !== 200) {
-    //  alert(`Login failed: ${response.statusText}`)
-    //  return
-    //}
+    if (response.status !== 200) {
+      alert(`Login failed: ${response.statusText}`)
+      return
+    }
 
-    //const authStore = useAuthStore()
-    //authStore.login({
-    //  email: email.value,
-    //  jwt: response.data.jwt,
-    //  name: response.data.name,
-    //  is_admin: response.data.is_admin,
-    //})
+    const authStore = useAuthStore()
+    authStore.login({
+      email: email.value,
+      jwt: response.data.jwt,
+      name: response.data.name,
+      is_admin: response.data.is_admin,
+    })
 
     router.push('/home')
   }
