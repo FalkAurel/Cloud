@@ -1,7 +1,7 @@
 services:
   backend:
     build:
-      context: ../backend
+      context: $PWD/backend
       dockerfile: Dockerfile
     ports:
       - "5000:5000"
@@ -43,7 +43,7 @@ services:
 
   reverse_proxy:
     build:
-      context: ../reverse_proxy
+      context: $PWD/reverse_proxy
       dockerfile: Dockerfile
     ports:
       - "80:80"
