@@ -5,17 +5,15 @@ pub struct FixedSizedStr<const BYTES: usize> {
     bytes: [u8; BYTES],
 }
 
-
 struct FixedStrVisitor<const BYTES: usize>;
-
 
 #[cfg(test)]
 #[derive(Debug)]
-pub (crate) struct TooLong;
+pub(crate) struct TooLong;
 
 impl<const BYTES: usize> FixedSizedStr<BYTES> {
     #[cfg(test)]
-    pub (crate) fn new_from_str(value: &str) -> Result<Self, TooLong> {
+    pub(crate) fn new_from_str(value: &str) -> Result<Self, TooLong> {
         if value.len() > BYTES {
             return Err(TooLong);
         }

@@ -106,8 +106,10 @@ impl<'de> Visitor<'de> for StandardUserViewDeserializer {
             }
         }
 
-        let name: FixedSizedStr<MAX_UTF8_BYTES> = name.ok_or_else(|| A::Error::missing_field("name"))?;
-        let email: FixedSizedStr<MAX_UTF8_BYTES> = email.ok_or_else(|| A::Error::missing_field("email"))?;
+        let name: FixedSizedStr<MAX_UTF8_BYTES> =
+            name.ok_or_else(|| A::Error::missing_field("name"))?;
+        let email: FixedSizedStr<MAX_UTF8_BYTES> =
+            email.ok_or_else(|| A::Error::missing_field("email"))?;
         let is_admin: bool = is_admin.ok_or_else(|| A::Error::missing_field("is_admin"))?;
 
         Ok(StandardUserView {
@@ -122,7 +124,10 @@ impl<'de> Visitor<'de> for StandardUserViewDeserializer {
 mod user {
     use rocket::serde::json;
 
-    use crate::data_definitions::{FixedSizedStr, user::{DB_STRING_LENGTH, MAX_UTF8_BYTES, StandardUserView}};
+    use crate::data_definitions::{
+        FixedSizedStr,
+        user::{DB_STRING_LENGTH, MAX_UTF8_BYTES, StandardUserView},
+    };
     const TEST_NAME: &'static str = "test";
     const TEST_EMAIL: &'static str = "test@gmail.com";
 
