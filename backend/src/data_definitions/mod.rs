@@ -1,3 +1,4 @@
+mod fixed_len_str;
 mod user;
-mod FixedStr;
 pub use user::StandardUserView;
+pub use fixed_len_str::FixedSizedStr;

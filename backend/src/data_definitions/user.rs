@@ -4,13 +4,14 @@ use serde::{
     ser::SerializeStruct,
 };
 
-const DB_STRING_LENGTH: usize = 40;
-const DB_STRING_BYTE_LENGTH: usize = DB_STRING_LENGTH * size_of::<char>();
+use crate::data_definitions::FixedSizedStr;
 
-#[derive(Debug)]
+const DB_STRING_LENGTH: usize = 40;
+const MAX_UTF8_BYTES: usize = DB_STRING_LENGTH * size_of::<char>();
+
 pub struct StandardUserView {
-    name: [u8; DB_STRING_BYTE_LENGTH],
-    email: [u8; DB_STRING_BYTE_LENGTH],
+    name: FixedSizedStr<MAX_UTF8_BYTES>,
+    email: FixedSizedStr<MAX_UTF8_BYTES>,
     is_admin: bool,
 }
 
@@ -26,26 +27,15 @@ struct StandardUserViewDeserializer;
 
 impl StandardUserView {
     pub fn get_name(&self) -> &str {
-        Self::get_str(&self.name)
+        self.name.as_str()
     }
 
     pub fn get_email(&self) -> &str {
-        Self::get_str(&self.email)
+        self.email.as_str()
     }
 
     pub fn is_admin(&self) -> bool {
         self.is_admin
-    }
-
-    #[inline]
-    fn get_str(array: &[u8]) -> &str {
-        let mut index: usize = 0;
-
-        while index < array.len() && array[index] != b'\0' {
-            index += 1;
-        }
-
-        unsafe { str::from_utf8_unchecked(&array[..index]) }
     }
 }
 
@@ -97,42 +87,17 @@ impl<'de> Visitor<'de> for StandardUserViewDeserializer {
     where
         A: serde::de::MapAccess<'de>,
     {
-        let mut name: Option<[u8; DB_STRING_BYTE_LENGTH]> = None;
-        let mut email: Option<[u8; DB_STRING_BYTE_LENGTH]> = None;
+        let mut name: Option<FixedSizedStr<MAX_UTF8_BYTES>> = None;
+        let mut email: Option<FixedSizedStr<MAX_UTF8_BYTES>> = None;
         let mut is_admin: Option<bool> = None;
 
         while let Some(key) = map.next_key::<StandardUserViewFields>()? {
             match key {
                 StandardUserViewFields::Name if name.is_none() => {
-                    let local_name: &str = map.next_value::<&str>()?;
-
-                    let mut temp_name: [u8; DB_STRING_BYTE_LENGTH] = [b'\0'; DB_STRING_BYTE_LENGTH];
-                    let len: usize = local_name.len();
-
-                    if len > DB_STRING_BYTE_LENGTH {
-                        return Err(A::Error::invalid_length(len, &"Name is too long"));
-                    }
-
-                    temp_name[..len.min(DB_STRING_BYTE_LENGTH)]
-                        .copy_from_slice(local_name.as_bytes());
-
-                    name = Some(temp_name);
+                    name = Some(map.next_value::<FixedSizedStr<MAX_UTF8_BYTES>>()?);
                 }
                 StandardUserViewFields::Email if email.is_none() => {
-                    let local_email: &str = map.next_value::<&str>()?;
-
-                    let mut temp_email: [u8; DB_STRING_BYTE_LENGTH] =
-                        [b'\0'; DB_STRING_BYTE_LENGTH];
-                    let len: usize = local_email.len();
-
-                    if len > DB_STRING_BYTE_LENGTH {
-                        return Err(A::Error::invalid_length(len, &"Email is too long"));
-                    }
-
-                    temp_email[..len.min(DB_STRING_BYTE_LENGTH)]
-                        .copy_from_slice(local_email.as_bytes());
-
-                    email = Some(temp_email);
+                    email = Some(map.next_value::<FixedSizedStr<MAX_UTF8_BYTES>>()?)
                 }
                 StandardUserViewFields::IsAdmin if is_admin.is_none() => {
                     is_admin = Some(map.next_value::<bool>()?)
@@ -141,10 +106,8 @@ impl<'de> Visitor<'de> for StandardUserViewDeserializer {
             }
         }
 
-        let name: [u8; DB_STRING_BYTE_LENGTH] =
-            name.ok_or_else(|| A::Error::missing_field("name"))?;
-        let email: [u8; DB_STRING_BYTE_LENGTH] =
-            email.ok_or_else(|| A::Error::missing_field("email"))?;
+        let name: FixedSizedStr<MAX_UTF8_BYTES> = name.ok_or_else(|| A::Error::missing_field("name"))?;
+        let email: FixedSizedStr<MAX_UTF8_BYTES> = email.ok_or_else(|| A::Error::missing_field("email"))?;
         let is_admin: bool = is_admin.ok_or_else(|| A::Error::missing_field("is_admin"))?;
 
         Ok(StandardUserView {
@@ -159,26 +122,15 @@ impl<'de> Visitor<'de> for StandardUserViewDeserializer {
 mod user {
     use rocket::serde::json;
 
-    use crate::data_definitions::user::{DB_STRING_BYTE_LENGTH, StandardUserView};
+    use crate::data_definitions::{FixedSizedStr, user::{DB_STRING_LENGTH, MAX_UTF8_BYTES, StandardUserView}};
     const TEST_NAME: &'static str = "test";
     const TEST_EMAIL: &'static str = "test@gmail.com";
 
     #[test]
     fn serialize_user() {
-        let mut name: [u8; DB_STRING_BYTE_LENGTH] = [b'\0'; DB_STRING_BYTE_LENGTH];
-        let mut email: [u8; DB_STRING_BYTE_LENGTH] = [b'\0'; DB_STRING_BYTE_LENGTH];
-
-        for (index, c) in TEST_NAME.bytes().enumerate() {
-            name[index] = c;
-        }
-
-        for (index, c) in TEST_EMAIL.bytes().enumerate() {
-            email[index] = c;
-        }
-
         let user: StandardUserView = StandardUserView {
-            name,
-            email,
+            name: FixedSizedStr::new_from_str(TEST_NAME).unwrap(),
+            email: FixedSizedStr::new_from_str(TEST_EMAIL).unwrap(),
             is_admin: false,
         };
 
@@ -205,25 +157,14 @@ mod user {
 
     #[test]
     fn deserialize_and_serialize_utf8() {
-        let long_name: String = "𐍈".repeat(40);
+        let long_name: String = "𐍈".repeat(DB_STRING_LENGTH);
 
         assert_eq!(long_name.chars().count(), 40);
-        assert_eq!(long_name.as_bytes().len(), DB_STRING_BYTE_LENGTH);
-
-        let mut name: [u8; DB_STRING_BYTE_LENGTH] = [b'\0'; DB_STRING_BYTE_LENGTH];
-        let mut email: [u8; DB_STRING_BYTE_LENGTH] = [b'\0'; DB_STRING_BYTE_LENGTH];
-
-        for (index, c) in long_name.bytes().enumerate() {
-            name[index] = c;
-        }
-
-        for (index, c) in TEST_EMAIL.bytes().enumerate() {
-            email[index] = c;
-        }
+        assert_eq!(long_name.as_bytes().len(), MAX_UTF8_BYTES);
 
         let user: StandardUserView = StandardUserView {
-            name,
-            email,
+            name: FixedSizedStr::new_from_str(&long_name).unwrap(),
+            email: FixedSizedStr::new_from_str(TEST_EMAIL).unwrap(),
             is_admin: false,
         };
 
