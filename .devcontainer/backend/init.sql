@@ -1,8 +1,12 @@
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
+    password VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL UNIQUE,
     is_admin BOOLEAN DEFAULT FALSE,
+    salt BINARY(16) UNIQUE DEFAULT RAND(),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
+
+INSERT IGNORE INTO users (name, password, email, is_admin) VALUES ("admin", "admin", "admin@admin.com", TRUE);
