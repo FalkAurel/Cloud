@@ -9,7 +9,7 @@ services:
       - ../../backend/Cargo.toml:/workspace/Cargo.toml
       - ../../backend/Cargo.lock:/workspace/Cargo.lock
     ports:
-      - "8000:8000"
+      - "8000:3000"
     env_file:
       - ../.env
     tty: true
@@ -17,18 +17,30 @@ services:
     networks:
       - backend-network
 
+  db:
+    image: mariadb:12.2-noble
+    restart: unless-stopped
+    env_file: ../.env
+    networks:
+      - backend-network
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -uroot -p$$MARIADB_ROOT_PASSWORD"]
+      interval: 10s
+      retries: 5
+    stdin_open: true 
+    tty: true
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
   minio:
     image: minio/minio
     env_file:
       - ../.env
-    environment:
-      - MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD
-      - MINIO_ROOT_USER=$MINIO_ROOT_USER
-      - BUCKET_NAME=$BUCKET_NAME
     command: server /data --console-address ":9001"
     restart: unless-stopped
     networks:
       - backend-network
+    ports:
+      - "9001:9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://minio:9000/minio/health/live"]
       interval: 5s
