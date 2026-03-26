@@ -5,12 +5,26 @@ use std::{
 
 use argon2::Argon2;
 use sqlx::{MySql, Pool, mysql::MySqlConnectOptions};
+use tracing::Level;
+use tracing_subscriber::EnvFilter;
 
 pub mod data_definitions;
 pub mod routes;
 
+pub mod fairings;
+
 pub(crate) static DB_POOL: OnceLock<Pool<MySql>> = OnceLock::new();
 pub(crate) static ARGON_2: LazyLock<Argon2> = LazyLock::new(|| Argon2::default());
+
+pub const TRACE_LEVEL: LazyLock<Level> = LazyLock::new(|| {
+    let log_level: Level = EnvFilter::from_default_env()
+        .max_level_hint()
+        .and_then(|hint| hint.into_level())
+        .unwrap_or(Level::INFO);
+
+    tracing::info!("Setting log level to {}", log_level);
+    log_level
+});
 
 pub async fn init_db() {
     let user: String = env::var("MARIADB_USER").expect("Provide a USER");

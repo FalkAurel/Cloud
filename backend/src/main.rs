@@ -1,7 +1,8 @@
 #[macro_use]
 extern crate rocket;
-use backend::{init_db, routes::login_request};
+use backend::{TRACE_LEVEL, init_db, routes::login_request};
 use rocket::{Config, Rocket, get};
+use tracing::level_filters::LevelFilter;
 use std::net::{IpAddr, Ipv4Addr};
 use tracing_subscriber::{
     FmtSubscriber,
@@ -42,6 +43,7 @@ async fn main() -> Result<(), rocket::Error> {
         .with_line_number(true)
         .with_target(false)
         .with_span_events(FmtSpan::ENTER | FmtSpan::CLOSE)
+        .with_min_level(LevelFilter::from_level(*TRACE_LEVEL))
         .finish();
 
     tracing::subscriber::set_global_default(subscriber).expect("Failed to set global subscriber");
