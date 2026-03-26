@@ -11,12 +11,16 @@ use tracing_subscriber::EnvFilter;
 pub mod data_definitions;
 pub mod routes;
 
-pub mod fairings;
+#[cfg(debug_assertions)]
+mod http_span;
+#[cfg(debug_assertions)]
+pub use http_span::{HttpSpan, RequestTraceSpan};
+
 
 pub(crate) static DB_POOL: OnceLock<Pool<MySql>> = OnceLock::new();
 pub(crate) static ARGON_2: LazyLock<Argon2> = LazyLock::new(|| Argon2::default());
 
-pub const TRACE_LEVEL: LazyLock<Level> = LazyLock::new(|| {
+pub static TRACE_LEVEL: LazyLock<Level> = LazyLock::new(|| {
     let log_level: Level = EnvFilter::from_default_env()
         .max_level_hint()
         .and_then(|hint| hint.into_level())

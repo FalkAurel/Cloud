@@ -1,13 +1,9 @@
 #[macro_use]
 extern crate rocket;
-use backend::{TRACE_LEVEL, init_db, routes::login_request};
+use backend::{HttpSpan, RequestTraceSpan, TRACE_LEVEL, init_db, routes::login_request};
 use rocket::{Config, Rocket, get};
-use tracing::level_filters::LevelFilter;
 use std::net::{IpAddr, Ipv4Addr};
-use tracing_subscriber::{
-    FmtSubscriber,
-    fmt::format::{Compact, FmtSpan, Format, JsonFields},
-};
+use tracing_subscriber::fmt::{format::FmtSpan, writer::MakeWriterExt};
 
 #[tracing::instrument]
 #[get("/health")]
@@ -36,21 +32,37 @@ async fn main() -> Result<(), rocket::Error> {
 
     init_db().await;
 
-    let subscriber: FmtSubscriber<JsonFields, Format<Compact>> = tracing_subscriber::fmt()
-        .json()
-        .compact()
-        .with_file(true)
-        .with_line_number(true)
-        .with_target(false)
-        .with_span_events(FmtSpan::ENTER | FmtSpan::CLOSE)
-        .with_min_level(LevelFilter::from_level(*TRACE_LEVEL))
-        .finish();
+    if cfg!(debug_assertions) {
+        let subscriber = tracing_subscriber::fmt()
+            .with_writer(std::io::stdout.with_min_level(*TRACE_LEVEL))
+            .compact()
+            .with_file(true)
+            .with_line_number(true)
+            .with_target(false)
+            .with_span_events(FmtSpan::ENTER | FmtSpan::CLOSE)
+            .finish();
 
-    tracing::subscriber::set_global_default(subscriber).expect("Failed to set global subscriber");
+        tracing::subscriber::set_global_default(subscriber)
+            .expect("Failed to set global subscriber");
+    } else {
+        let subscriber = tracing_subscriber::fmt()
+            .json()
+            .with_writer(std::io::stdout.with_min_level(*TRACE_LEVEL))
+            .compact()
+            .with_file(true)
+            .with_line_number(true)
+            .with_target(false)
+            .with_span_events(FmtSpan::ENTER | FmtSpan::CLOSE)
+            .finish();
+
+        tracing::subscriber::set_global_default(subscriber)
+            .expect("Failed to set global subscriber");
+    };
 
     let _rocket: Rocket<rocket::Ignite> = rocket::build()
         .configure(server_config)
         .mount("/", routes![hi, health, login_request])
+        .attach(RequestTraceSpan::new())
         .launch()
         .await?;
 
