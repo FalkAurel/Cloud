@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate rocket;
 use backend::{RequestTraceSpan, TRACE_LEVEL, init_db, routes::login_request};
-use rocket::{Config, Rocket, State, get};
+use rocket::{Config, Rocket, get};
 use std::net::{IpAddr, Ipv4Addr};
 use tracing_subscriber::fmt::{format::FmtSpan, writer::MakeWriterExt};
 
