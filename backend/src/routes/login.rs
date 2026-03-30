@@ -32,7 +32,7 @@ pub async fn login(
 
     let password: String = login_request.into_inner().password.to_owned();
 
-    let (hash, user_id): (Option<String>, Option<u16>) = match result {
+    let (hash, user_id): (Option<String>, Option<u32>) = match result {
         Ok(Some(ref row)) => {
             let hash: Option<String> = match row.try_get("password_hash") {
                 Ok(hash) => Some(hash),
@@ -42,7 +42,7 @@ pub async fn login(
                 }
             };
 
-            let user_id: Option<u16> = match row.try_get("id") {
+            let user_id: Option<u32> = match row.try_get("id") {
                 Ok(id) => Some(id),
                 Err(err) => {
                     warn!(error = %err, "Failed to retrieve id from row");

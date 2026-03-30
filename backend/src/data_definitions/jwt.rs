@@ -15,11 +15,11 @@ static JWT_SECRET: LazyLock<EncodingKey> = LazyLock::new(|| {
 #[derive(Serialize, Deserialize)]
 pub struct JWT {
     expiration: u128,
-    user_id: u16, // 16K users should be fine for now
+    user_id: u32, // 16K users should be fine for now
 }
 
 impl JWT {
-    pub fn create(user_id: u16, duration: Duration) -> Result<String, JWTError> {
+    pub fn create(user_id: u32, duration: Duration) -> Result<String, JWTError> {
         let now: Duration = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Should never fail");
