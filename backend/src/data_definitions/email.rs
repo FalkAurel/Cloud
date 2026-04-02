@@ -1,4 +1,4 @@
-use std::{env, sync::LazyLock, time::Duration};
+use std::{env, str::Split, sync::LazyLock, time::Duration};
 
 use tracing::info;
 
@@ -18,6 +18,7 @@ pub(crate) enum EmailError {
     EmailError(PrivateEmailError),
     SendError(PrivateSendError),
     AddressError(AddressError),
+    InitializationError(&'static str),
 }
 
 impl From<PrivateEmailError> for EmailError {
@@ -42,13 +43,18 @@ const MIN_IDLE_CONNECTION: u8 = 3;
 const IDLE_TIMEOUT_MINS: u8 = 40;
 const IDLE_TIMEOUT: Duration = Duration::from_mins(IDLE_TIMEOUT_MINS as u64);
 
-static ASYNC_EMAIL_SENDER: LazyLock<AsyncSmtpTransport<Tokio1Executor>> = LazyLock::new(|| {
-    let host: String =
-        env::var("MAILER_HOST").expect("Missing required environment variable: MAILER_HOST");
-    let user: String =
-        env::var("MAILER_USER").expect("Missing required environment variable: MAILER_USER");
-    let password: String = env::var("MAILER_PASSWORD")
-        .expect("Missing required environment variable: MAILER_PASSWORD");
+pub type EmailSender = AsyncSmtpTransport<Tokio1Executor>;
+
+pub fn init_email_sender() -> Result<EmailSender, EmailError> {
+    let host: String = env::var("MAILER_HOST").map_err(|_| {
+        EmailError::InitializationError("Missing required environment variable: MAILER_HOST")
+    })?;
+    let user: String = env::var("MAILER_USER").map_err(|_| {
+        EmailError::InitializationError("Missing required environment variable: MAILER_USER")
+    })?;
+    let password: String = env::var("MAILER_PASSWORD").map_err(|_| {
+        EmailError::InitializationError("Missing required environment variable: MAILER_PASSWORD")
+    })?;
 
     info!(
         mailer_host = %host,
@@ -71,8 +77,8 @@ static ASYNC_EMAIL_SENDER: LazyLock<AsyncSmtpTransport<Tokio1Executor>> = LazyLo
 
     info!(mailer_host = %host, "SMTP connection pool ready");
 
-    email_sender
-});
+    Ok(email_sender)
+}
 
 pub(crate) struct ValidatedEmail<'a>(&'a str);
 
@@ -105,6 +111,15 @@ impl<'a> Email<'a> {
         }
     }
 
+    fn get_address(validated_email: ValidatedEmail) -> Address {
+        let mut split: Split<'_, &str> = validated_email.0.split("@");
+
+        let user: &str = split.next().unwrap();
+        let domain: &str = split.next().unwrap();
+
+        Address::new_dangerous(user, domain)
+    }
+
     pub(crate) fn set_subject(self, subject: &'a str) -> Self {
         Self {
             subject: Some(subject),
@@ -126,10 +141,10 @@ impl<'a> Email<'a> {
         }
     }
 
-    pub(crate) async fn send(self) -> Result<Response, EmailError> {
+    pub(crate) async fn send(self, sender: &EmailSender) -> Result<Response, EmailError> {
         let builder: MessageBuilder = MessageBuilder::new()
-            .from(Mailbox::new(None, self.sender.0.parse::<Address>()?))
-            .to(Mailbox::new(None, self.receiver.0.parse::<Address>()?))
+            .from(Mailbox::new(None, Self::get_address(self.sender)))
+            .to(Mailbox::new(None, Self::get_address(self.receiver)))
             .subject(self.subject.unwrap_or(""));
 
         let multipart: MultiPart = match (self.html_content, self.text_content) {
@@ -146,8 +161,7 @@ impl<'a> Email<'a> {
         };
 
         let message: Message = builder.multipart(multipart)?;
-
-        Ok(ASYNC_EMAIL_SENDER.send(message).await?)
+        Ok(sender.send(message).await?)
     }
 }
 
@@ -195,7 +209,7 @@ mod tests {
         let result = Email::new(sender, receiver)
             .set_subject("[Test] Plain text")
             .set_text_content("This is a plain text test email.")
-            .send()
+            .send(&init_email_sender().unwrap())
             .await;
 
         result.unwrap();
@@ -209,7 +223,7 @@ mod tests {
 
         Email::new(sender, receiver)
             .set_text_content("Email with no subject set.")
-            .send()
+            .send(&init_email_sender().unwrap())
             .await
             .unwrap();
     }
@@ -223,7 +237,7 @@ mod tests {
         Email::new(sender, receiver)
             .set_subject("[Test] HTML content")
             .set_html_content(include_str!("../routes/signup_confirmation.html"))
-            .send()
+            .send(&init_email_sender().unwrap())
             .await
             .unwrap();
     }
