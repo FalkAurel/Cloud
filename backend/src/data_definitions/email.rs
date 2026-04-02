@@ -14,7 +14,7 @@ use lettre::{
 };
 
 #[derive(Debug)]
-pub (crate) enum EmailError {
+pub(crate) enum EmailError {
     EmailError(PrivateEmailError),
     SendError(PrivateSendError),
     AddressError(AddressError),
@@ -221,7 +221,7 @@ mod tests {
 
         Email::new(sender, receiver)
             .set_subject("[Test] HTML content")
-            .set_html_content("<h1>Hello</h1><p>This is an HTML test email.</p>")
+            .set_html_content(include_str!("../routes/signup_confirmation.html"))
             .send()
             .await
             .unwrap();
