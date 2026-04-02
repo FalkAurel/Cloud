@@ -1,4 +1,4 @@
-use std::{env, str::Split, sync::LazyLock, time::Duration};
+use std::{env, str::Split, time::Duration};
 
 use tracing::info;
 
@@ -112,10 +112,10 @@ impl<'a> Email<'a> {
     }
 
     fn get_address(validated_email: ValidatedEmail) -> Address {
-        let mut split: Split<'_, &str> = validated_email.0.split("@");
-
-        let user: &str = split.next().unwrap();
-        let domain: &str = split.next().unwrap();
+        let (user, domain) = validated_email
+            .0
+            .split_once("@")
+            .expect("@ seperator is missing");
 
         Address::new_dangerous(user, domain)
     }
