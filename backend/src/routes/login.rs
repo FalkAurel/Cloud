@@ -1,5 +1,4 @@
 use argon2::{PasswordHash, PasswordVerifier};
-use core::str;
 use rocket::http::{Cookie, CookieJar, SameSite, Status};
 use rocket::serde::json::Json;
 use rocket::tokio::task::{self, JoinHandle};
