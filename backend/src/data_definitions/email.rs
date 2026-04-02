@@ -1,8 +1,7 @@
-use std::{env, str::Split, time::Duration};
+use std::{env, time::Duration};
 
 use tracing::info;
 
-use email_syntax_verify_opt::validate_email;
 use lettre::{
     Address, AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
     address::AddressError,
@@ -80,28 +79,16 @@ pub fn init_email_sender() -> Result<EmailSender, EmailError> {
     Ok(email_sender)
 }
 
-pub(crate) struct ValidatedEmail<'a>(&'a str);
-
-impl<'a> ValidatedEmail<'a> {
-    pub(crate) fn new(email: &'a str) -> Option<Self> {
-        if validate_email(email) {
-            Some(Self(email))
-        } else {
-            None
-        }
-    }
-}
-
 pub(crate) struct Email<'a> {
-    sender: ValidatedEmail<'a>,
-    receiver: ValidatedEmail<'a>,
+    sender: Address,
+    receiver: Address,
     subject: Option<&'a str>,
     html_content: Option<&'a str>,
     text_content: Option<&'a str>,
 }
 
 impl<'a> Email<'a> {
-    pub(crate) fn new(sender: ValidatedEmail<'a>, receiver: ValidatedEmail<'a>) -> Self {
+    pub(crate) fn new(sender: Address, receiver: Address) -> Self {
         Self {
             sender,
             receiver,
@@ -109,15 +96,6 @@ impl<'a> Email<'a> {
             html_content: None,
             text_content: None,
         }
-    }
-
-    fn get_address(validated_email: ValidatedEmail) -> Address {
-        let (user, domain) = validated_email
-            .0
-            .split_once("@")
-            .expect("@ seperator is missing");
-
-        Address::new_dangerous(user, domain)
     }
 
     pub(crate) fn set_subject(self, subject: &'a str) -> Self {
@@ -143,21 +121,21 @@ impl<'a> Email<'a> {
 
     pub(crate) async fn send(self, sender: &EmailSender) -> Result<Response, EmailError> {
         let builder: MessageBuilder = MessageBuilder::new()
-            .from(Mailbox::new(None, Self::get_address(self.sender)))
-            .to(Mailbox::new(None, Self::get_address(self.receiver)))
+            .from(Mailbox::new(None, self.sender))
+            .to(Mailbox::new(None, self.receiver))
             .subject(self.subject.unwrap_or(""));
 
         let multipart: MultiPart = match (self.html_content, self.text_content) {
-            (Some(html), Some(text)) => MultiPart::related()
+            (Some(html), Some(text)) => MultiPart::alternative()
                 .singlepart(SinglePart::html(html.to_string()))
                 .singlepart(SinglePart::plain(text.to_string())),
             (Some(html), None) => {
-                MultiPart::related().singlepart(SinglePart::html(html.to_string()))
+                MultiPart::alternative().singlepart(SinglePart::html(html.to_owned()))
             }
             (None, Some(text)) => {
-                MultiPart::related().singlepart(SinglePart::plain(text.to_string()))
+                MultiPart::alternative().singlepart(SinglePart::plain(text.to_owned()))
             }
-            (None, None) => MultiPart::related().singlepart(SinglePart::plain(String::new())),
+            (None, None) => MultiPart::alternative().singlepart(SinglePart::plain(String::new())),
         };
 
         let message: Message = builder.multipart(multipart)?;
@@ -172,39 +150,39 @@ mod tests {
     const TEST_ADDRESS: &str = "falkaurelclouddeployment@gmail.com";
     #[test]
     fn valid_email_accepted() {
-        assert!(ValidatedEmail::new("user@example.com").is_some());
+        assert!("user@example.com".parse::<Address>().is_ok());
     }
 
     #[test]
     fn valid_email_with_subdomain_accepted() {
-        assert!(ValidatedEmail::new("user@mail.example.com").is_some());
+        assert!("user@mail.example.com".parse::<Address>().is_ok());
     }
 
     #[test]
     fn invalid_email_no_at_rejected() {
-        assert!(ValidatedEmail::new("notanemail").is_none());
+        assert!("notanemail".parse::<Address>().is_err());
     }
 
     #[test]
     fn invalid_email_no_domain_rejected() {
-        assert!(ValidatedEmail::new("user@").is_none());
+        assert!("user@".parse::<Address>().is_err());
     }
 
     #[test]
     fn invalid_email_no_local_rejected() {
-        assert!(ValidatedEmail::new("@example.com").is_none());
+        assert!("@example.com".parse::<Address>().is_ok());
     }
 
     #[test]
     fn invalid_email_empty_rejected() {
-        assert!(ValidatedEmail::new("").is_none());
+        assert!("".parse::<Address>().is_err());
     }
 
     #[tokio::test]
     #[ignore = "requires live SMTP relay via MAILER_HOST"]
     async fn send_plain_text_email() {
-        let sender: ValidatedEmail = ValidatedEmail::new(TEST_ADDRESS).unwrap();
-        let receiver: ValidatedEmail = ValidatedEmail::new(TEST_ADDRESS).unwrap();
+        let sender: Address = TEST_ADDRESS.parse().unwrap();
+        let receiver: Address = TEST_ADDRESS.parse().unwrap();
 
         let result = Email::new(sender, receiver)
             .set_subject("[Test] Plain text")
@@ -218,8 +196,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires live SMTP relay via MAILER_HOST"]
     async fn send_email_no_subject() {
-        let sender: ValidatedEmail = ValidatedEmail::new(TEST_ADDRESS).unwrap();
-        let receiver: ValidatedEmail = ValidatedEmail::new(TEST_ADDRESS).unwrap();
+        let sender: Address = TEST_ADDRESS.parse().unwrap();
+        let receiver: Address = TEST_ADDRESS.parse().unwrap();
 
         Email::new(sender, receiver)
             .set_text_content("Email with no subject set.")
@@ -231,8 +209,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires live SMTP relay via MAILER_HOST"]
     async fn send_html_email() {
-        let sender: ValidatedEmail = ValidatedEmail::new(TEST_ADDRESS).unwrap();
-        let receiver: ValidatedEmail = ValidatedEmail::new(TEST_ADDRESS).unwrap();
+        let sender: Address = TEST_ADDRESS.parse().unwrap();
+        let receiver: Address = TEST_ADDRESS.parse().unwrap();
 
         Email::new(sender, receiver)
             .set_subject("[Test] HTML content")
