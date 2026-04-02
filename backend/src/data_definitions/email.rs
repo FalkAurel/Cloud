@@ -20,6 +20,24 @@ pub(crate) enum EmailError {
     AddressError(AddressError),
 }
 
+impl From<PrivateEmailError> for EmailError {
+    fn from(value: PrivateEmailError) -> Self {
+        Self::EmailError(value)
+    }
+}
+
+impl From<AddressError> for EmailError {
+    fn from(value: AddressError) -> Self {
+        Self::AddressError(value)
+    }
+}
+
+impl From<PrivateSendError> for EmailError {
+    fn from(value: PrivateSendError) -> Self {
+        Self::SendError(value)
+    }
+}
+
 const MIN_IDLE_CONNECTION: u8 = 3;
 const IDLE_TIMEOUT_MINS: u8 = 40;
 const IDLE_TIMEOUT: Duration = Duration::from_mins(IDLE_TIMEOUT_MINS as u64);
@@ -110,20 +128,8 @@ impl<'a> Email<'a> {
 
     pub(crate) async fn send(self) -> Result<Response, EmailError> {
         let builder: MessageBuilder = MessageBuilder::new()
-            .from(Mailbox::new(
-                None,
-                self.sender
-                    .0
-                    .parse::<Address>()
-                    .map_err(EmailError::AddressError)?,
-            ))
-            .to(Mailbox::new(
-                None,
-                self.receiver
-                    .0
-                    .parse::<Address>()
-                    .map_err(EmailError::AddressError)?,
-            ))
+            .from(Mailbox::new(None, self.sender.0.parse::<Address>()?))
+            .to(Mailbox::new(None, self.receiver.0.parse::<Address>()?))
             .subject(self.subject.unwrap_or(""));
 
         let multipart: MultiPart = match (self.html_content, self.text_content) {
@@ -139,14 +145,9 @@ impl<'a> Email<'a> {
             (None, None) => MultiPart::related().singlepart(SinglePart::plain(String::new())),
         };
 
-        let message: Message = builder
-            .multipart(multipart)
-            .map_err(|err| EmailError::EmailError(err))?;
+        let message: Message = builder.multipart(multipart)?;
 
-        ASYNC_EMAIL_SENDER
-            .send(message)
-            .await
-            .map_err(|err| EmailError::SendError(err))
+        Ok(ASYNC_EMAIL_SENDER.send(message).await?)
     }
 }
 
