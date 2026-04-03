@@ -30,7 +30,7 @@ pub async fn login(
 
     let password: String = login_request.into_inner().password.to_owned();
 
-    let (hash, user_id): (Option<String>, Option<u32>) = match result {
+    let (hash, user_id): (Option<String>, Option<i32>) = match result {
         Ok(Some(ref row)) => {
             let hash: Option<String> = match row.try_get("password_hash") {
                 Ok(hash) => Some(hash),
@@ -40,7 +40,7 @@ pub async fn login(
                 }
             };
 
-            let user_id: Option<u32> = match row.try_get("id") {
+            let user_id: Option<i32> = match row.try_get("id") {
                 Ok(id) => Some(id),
                 Err(err) => {
                     warn!(error = %err, "Failed to retrieve id from row");
@@ -59,6 +59,8 @@ pub async fn login(
         }
     };
 
+    dbg!(user_id);
+
     let join_handle: JoinHandle<Option<String>> = task::spawn_blocking(move || {
         let hash: PasswordHash = match PasswordHash::new(hash.as_deref().unwrap_or(DUMMY_HASH)) {
             Ok(hash) => hash,
@@ -71,7 +73,7 @@ pub async fn login(
         match ARGON_2.verify_password(password.as_bytes(), &hash) {
             Ok(_) => {
                 if let Some(user_id) = user_id {
-                    match JWT::create(user_id, TOKEN_LIFETIME) {
+                    match JWT::create(user_id as u32, TOKEN_LIFETIME) {
                         Ok(token) => {
                             info!(user_id, "Login successful");
                             Some(token)
@@ -108,5 +110,93 @@ pub async fn login(
             error!(error = %err, "Login task panicked");
             Err((Status::InternalServerError, "Internal server error"))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rocket::http::{ContentType, Status as HttpStatus};
+    use rocket::local::asynchronous::Client;
+    use sqlx::{MySql, Pool};
+
+    use super::*;
+    use crate::data_definitions::init_email_sender;
+
+    async fn build_test_client() -> Client {
+        let rocket = rocket::build()
+            .mount("/", rocket::routes![login, super::super::signup::signup])
+            .manage(crate::init_db().await)
+            .manage(init_email_sender().unwrap());
+        Client::tracked(rocket).await.unwrap()
+    }
+
+    async fn cleanup(client: &Client, email: &str) {
+        let db = client.rocket().state::<Pool<MySql>>().unwrap();
+        sqlx::query("DELETE FROM users WHERE email = ?")
+            .bind(email)
+            .execute(db)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires database and SMTP relay"]
+    async fn login_returns_200_after_signup() {
+        let client = build_test_client().await;
+        let email = "logintest@example.com";
+        let password = "password123";
+
+        client
+            .post("/signup")
+            .header(ContentType::JSON)
+            .body(format!(
+                r#"{{"name":"Login Test","email":"{}","password":"{}"}}"#,
+                email, password
+            ))
+            .dispatch()
+            .await;
+
+        let response = client
+            .post("/login")
+            .header(ContentType::JSON)
+            .body(format!(
+                r#"{{"email":"{}","password":"{}"}}"#,
+                email, password
+            ))
+            .dispatch()
+            .await;
+
+        assert_eq!(response.status(), HttpStatus::Ok);
+        cleanup(&client, email).await;
+    }
+
+    #[tokio::test]
+    #[ignore = "requires database and SMTP relay"]
+    async fn login_returns_401_for_wrong_password() {
+        let client = build_test_client().await;
+        let email = "wrongpass@example.com";
+
+        client
+            .post("/signup")
+            .header(ContentType::JSON)
+            .body(format!(
+                r#"{{"name":"Wrong Pass","email":"{}","password":"correctpassword"}}"#,
+                email
+            ))
+            .dispatch()
+            .await;
+
+        let response = client
+            .post("/login")
+            .header(ContentType::JSON)
+            .body(format!(
+                r#"{{"email":"{}","password":"wrongpassword"}}"#,
+                email
+            ))
+            .dispatch()
+            .await;
+
+        assert_eq!(response.status(), HttpStatus::Unauthorized);
+        cleanup(&client, email).await;
     }
 }
