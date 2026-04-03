@@ -27,10 +27,10 @@ SELECT EXISTS(SELECT 1 FROM users WHERE email = ?);
 "#;
 
 const SENDER_ADDRESS: LazyLock<Address> = LazyLock::new(|| {
-    env::var("SENDER_EMAIL")
-        .expect("SENDER_EMAIL must be set")
+    env::var("MAILER_USER")
+        .expect("MAILER_USER must be set")
         .parse()
-        .expect("SENDER_EMAIL must be a valid email address")
+        .expect("MAILER_USER must be a valid email address")
 });
 const SIGN_UP_SUBJECT: &str = "Welcome to your own Cloud – You're all set!";
 const SIGN_UP_HTML: &str = include_str!("signup_confirmation.html");
