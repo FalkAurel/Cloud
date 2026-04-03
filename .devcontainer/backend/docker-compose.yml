@@ -11,7 +11,7 @@ services:
     ports:
       - "8000:3000"
     env_file:
-      - ../.env
+      - ../../.env
     tty: true
     stdin_open: true
     networks:
@@ -20,7 +20,7 @@ services:
   db:
     image: mariadb:12.2-noble
     restart: unless-stopped
-    env_file: ../.env
+    env_file: ../../.env
     networks:
       - backend-network
     healthcheck:
@@ -34,7 +34,7 @@ services:
   minio:
     image: minio/minio
     env_file:
-      - ../.env
+      - ../../.env
     command: server /data --console-address ":9001"
     restart: unless-stopped
     networks:

@@ -1,5 +1,14 @@
 <template>
   <div class="SignUp-Page-Wrapper">
+    
+    <BaseNotification
+      v-model:show="showNotification"
+      :type="notificationType"
+      :duration="3000"
+    >
+      {{ notificationMessage }}
+    </BaseNotification>
+
     <div class="SignUp-View">
       <h2>Create your account</h2>
 
@@ -28,18 +37,53 @@ import { ref } from 'vue'
 import BaseInput from '../components/ui/BaseInput.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import CallToAction from '../components/ui/CallToAction.vue'
+import BaseNotification from '../components/ui/BaseNotification.vue'
+import type { SignupRequest } from '../types/api'
+
+const showNotification = ref(false)
+const notificationMessage = ref('')
+const notificationType = ref<'success' | 'error' | 'info'>('info')
 
 const username = ref('')
 const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
+const signup_url = "http://localhost:8000/signup"
 
-function signup() {
+async function signup() {
   if (password.value !== confirmPassword.value) {
-    alert('Passwords do not match!')
+    notificationMessage.value = 'Passwords do not match!'
+    notificationType.value = 'error'
+    showNotification.value = true
     return
   }
-  alert(`Username: ${username.value}, Email: ${email.value}`)
+
+  const sign_up_request: SignupRequest = {
+    email: email.value,
+    password: password.value,
+    name: username.value
+  }
+
+  const response: Response = await fetch(signup_url, {
+    method: "POST",
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'text/plain'
+    },
+    body: JSON.stringify(sign_up_request)
+  })
+
+  const message = await response.text()
+
+  if (response.ok) {
+    notificationMessage.value = message || 'Signup successful!'
+    notificationType.value = 'success'
+  } else {
+    notificationMessage.value = message || 'Signup failed'
+    notificationType.value = 'error'
+  }
+
+  showNotification.value = true
 }
 </script>
 

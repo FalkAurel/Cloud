@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y \
     traceroute \
     sudo \
     curl \
+    openssl \
+    libssl-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -ms /bin/bash vscode \

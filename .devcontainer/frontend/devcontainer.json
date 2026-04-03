@@ -2,12 +2,12 @@
   "name": "Cloud Dev Container Frontend",
   "dockerComposeFile": ["docker-compose.yml"],
   "service": "frontend",      // the primary container you want to open a shell in
-  "workspaceFolder": "/workspace",
+  "workspaceFolder": "/workspace/",
   "shutdownAction": "stopCompose",
   "extensions": [
-    "rust-lang.rust",
     "vue.volar",
-    "esbenp.prettier-vscode"
+    "esbenp.prettier-vscode",
+    "anthropic.claude-code"
   ],
   "settings": {
     "terminal.integrated.shell.linux": "/bin/bash"
