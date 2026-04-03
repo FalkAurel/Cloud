@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::{env, time::Duration};
 
 use tracing::info;
@@ -13,7 +14,7 @@ use lettre::{
 };
 
 #[derive(Debug)]
-pub(crate) enum EmailError {
+pub enum EmailError {
     EmailError(PrivateEmailError),
     SendError(PrivateSendError),
     AddressError(AddressError),
@@ -170,7 +171,7 @@ mod tests {
 
     #[test]
     fn invalid_email_no_local_rejected() {
-        assert!("@example.com".parse::<Address>().is_ok());
+        assert!("@example.com".parse::<Address>().is_err());
     }
 
     #[test]
