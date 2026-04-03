@@ -1,12 +1,14 @@
 #[macro_use]
 extern crate rocket;
 use backend::{
-    RequestTraceSpan, TRACE_LEVEL,
+    TRACE_LEVEL,
     data_definitions::init_email_sender,
     init_db,
     routes::{login_request, signup_request},
 };
+
 use rocket::{Config, Rocket, get};
+use rocket_cors::{AllowedOrigins, CorsOptions};
 use std::net::{IpAddr, Ipv4Addr};
 use tracing_subscriber::fmt::{format::FmtSpan, writer::MakeWriterExt};
 
@@ -70,12 +72,17 @@ async fn main() -> Result<(), rocket::Error> {
 
     tracing::info!(level = %*TRACE_LEVEL, "Tracing initialized");
 
+    let cors: rocket_cors::Cors = CorsOptions::default()
+        .allowed_origins(AllowedOrigins::some_exact(&["http://localhost:5173"]))
+        .to_cors()
+        .expect("Failed to build CORS");
+
     let _rocket: Rocket<rocket::Ignite> = rocket::build()
         .configure(server_config)
         .mount("/", routes![hi, health, login_request, signup_request])
-        .attach(RequestTraceSpan::new())
         .manage(init_db().await)
         .manage(init_email_sender().unwrap())
+        .attach(cors)
         .launch()
         .await?;
 
