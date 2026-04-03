@@ -1,7 +1,4 @@
-use std::{
-    env,
-    sync::LazyLock, time::Duration,
-};
+use std::{env, sync::LazyLock, time::Duration};
 
 use argon2::Argon2;
 use sqlx::{MySql, Pool, mysql::MySqlConnectOptions};

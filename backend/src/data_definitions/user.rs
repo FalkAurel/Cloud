@@ -33,6 +33,13 @@ pub struct UserLoginRequest<'a> {
     pub(crate) password: &'a str,
 }
 
+#[derive(Deserialize)]
+pub struct UserSignupRequest<'a> {
+    pub(crate) email: &'a str,
+    pub(crate) password: &'a str,
+    pub(crate) name: &'a str,
+}
+
 #[cfg(test)]
 mod user {
     use rocket::serde::json;
