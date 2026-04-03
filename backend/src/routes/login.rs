@@ -6,8 +6,8 @@ use rocket::{State, post};
 use sqlx::{Error, MySql, Pool, Row};
 use tracing::{error, info, warn};
 
-use crate::{ARGON_2, TOKEN_LIFETIME};
 use crate::data_definitions::{JWT, UserLoginRequest};
+use crate::{ARGON_2, TOKEN_LIFETIME};
 
 const LOGIN_QUERY_STR: &str = r#"
 SELECT password AS password_hash, id FROM users WHERE email = ? LIMIT 1;
@@ -15,8 +15,7 @@ SELECT password AS password_hash, id FROM users WHERE email = ? LIMIT 1;
 
 // A valid argon2id hash of a random string. Used to run a full verify_password
 // when the user does not exist, preventing timing-based user enumeration.
-const DUMMY_HASH: &str = 
-"$argon2id$v=19$m=19456,t=2,p=1$c29tZXJhbmRvbXNhbHQ$RoB4RWBSupGkPkOKA7HiYRmFjhSeop6UVKzSFbGMFG4";
+const DUMMY_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$c29tZXJhbmRvbXNhbHQ$RoB4RWBSupGkPkOKA7HiYRmFjhSeop6UVKzSFbGMFG4";
 
 #[post("/login", format = "json", data = "<login_request>")]
 pub async fn login(
