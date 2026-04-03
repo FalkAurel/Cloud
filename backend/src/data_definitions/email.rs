@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::{env, time::Duration};
 
 use tracing::info;
