@@ -74,6 +74,7 @@ async fn main() -> Result<(), rocket::Error> {
 
     let cors: rocket_cors::Cors = CorsOptions::default()
         .allowed_origins(AllowedOrigins::some_exact(&["http://localhost:5173"]))
+        .allow_credentials(true)
         .to_cors()
         .expect("Failed to build CORS");
 
