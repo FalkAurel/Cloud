@@ -24,8 +24,11 @@ fn hi() -> String {
     "Hello, world!".to_string()
 }
 
+#[cfg(not(feature = "export_binding"))]
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
+    use std::path::PathBuf;
+
     let mut server_config: Config = Config::default();
 
     server_config.port = 3000;
@@ -88,4 +91,22 @@ async fn main() -> Result<(), rocket::Error> {
         .await?;
 
     Ok(())
+}
+
+#[cfg(feature = "export_binding")]
+fn main() {
+    use std::path::PathBuf;
+
+    use backend::data_definitions::*;
+    use ts_rs::{Config, TS};
+
+    let config: Config = Config::new().with_out_dir(
+        ["..", "frontend", "vue-project", "src", "types", "bindings"]
+            .iter()
+            .collect::<PathBuf>(),
+    );
+
+    StandardUserView::export_all(&config).unwrap();
+    UserLoginRequest::export_all(&config).unwrap();
+    UserSignupRequest::export_all(&config).unwrap();
 }

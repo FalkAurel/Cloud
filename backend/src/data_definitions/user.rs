@@ -1,5 +1,5 @@
 use serde::{self, Deserialize, Serialize};
-#[cfg(test)]
+#[cfg(feature = "export_binding")]
 use ts_rs::TS;
 
 use crate::data_definitions::FixedSizedStr;
@@ -7,14 +7,13 @@ use crate::data_definitions::FixedSizedStr;
 const DB_STRING_LENGTH: usize = 40;
 const MAX_UTF8_BYTES: usize = DB_STRING_LENGTH * size_of::<char>();
 
-#[cfg_attr(test, derive(TS))]
-#[cfg_attr(test, ts(export, export_to = "../../frontend/vue-project/src/types/bindings/"))]
+#[cfg_attr(feature = "export_binding", derive(TS))]
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct StandardUserView {
-    #[cfg_attr(test, ts(type = "string"))]
+    #[cfg_attr(feature = "export_binding", ts(type = "string"))]
     name: FixedSizedStr<MAX_UTF8_BYTES>,
-    #[cfg_attr(test, ts(type = "string"))]
+    #[cfg_attr(feature = "export_binding", ts(type = "string"))]
     email: FixedSizedStr<MAX_UTF8_BYTES>,
     is_admin: bool,
 }
@@ -33,16 +32,14 @@ impl StandardUserView {
     }
 }
 
-#[cfg_attr(test, derive(TS))]
-#[cfg_attr(test, ts(export, export_to = "../../frontend/vue-project/src/types/bindings/"))]
+#[cfg_attr(feature = "export_binding", derive(TS))]
 #[derive(Deserialize)]
 pub struct UserLoginRequest<'a> {
     pub(crate) email: &'a str,
     pub(crate) password: &'a str,
 }
 
-#[cfg_attr(test, derive(TS))]
-#[cfg_attr(test, ts(export, export_to = "../../frontend/vue-project/src/types/bindings/"))]
+#[cfg_attr(feature = "export_binding", derive(TS))]
 #[derive(Deserialize)]
 pub struct UserSignupRequest<'a> {
     pub(crate) email: &'a str,
@@ -52,9 +49,8 @@ pub struct UserSignupRequest<'a> {
 
 #[cfg(test)]
 mod user {
-    use ts_rs::TS;
+    use super::StandardUserView;
     use rocket::serde::json;
-    use super::{StandardUserView, UserLoginRequest, UserSignupRequest};
 
     use crate::data_definitions::{
         FixedSizedStr,
@@ -108,12 +104,5 @@ mod user {
         let recovered_user: StandardUserView =
             json::from_str(&json::to_string(&user).unwrap()).unwrap();
         assert_eq!(recovered_user.get_name(), long_name);
-    }
-
-    #[test]
-    fn export_bindings() {
-        StandardUserView::export_all(&Default::default()).unwrap();
-        UserLoginRequest::export_all(&Default::default()).unwrap();
-        UserSignupRequest::export_all(&Default::default()).unwrap();
     }
 }
