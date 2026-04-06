@@ -4,7 +4,7 @@ use rocket::serde::json::Json;
 use rocket::tokio::task::{self, JoinHandle};
 use rocket::{State, post};
 use sqlx::{Error, MySql, Pool, Row};
-use tracing::{error, info, warn};
+use tracing::{Instrument, error, info, info_span, span, warn};
 
 use crate::data_definitions::{JWT, UserLoginRequest, UserLoginView};
 use crate::{ARGON_2, TOKEN_LIFETIME};
@@ -23,67 +23,71 @@ pub async fn login(
     connection: &State<Pool<MySql>>,
     cookies: &CookieJar<'_>,
 ) -> Result<Status, (Status, &'static str)> {
-    let UserLoginView { id, password_hash } =
-        get_user_view(connection.inner(), login_request.email)
-            .await
-            .ok()
-            .flatten()
-            .unwrap_or_else(|| UserLoginView {
-                id: -1, // dummy: verify_password will fail against DUMMY_HASH, preventing user enumeration
-                password_hash: DUMMY_HASH.to_owned(),
-            });
+    let span: tracing::Span = info_span!("login", email = %login_request.email);
+    async move {
+        let UserLoginView { id, password_hash } =
+            get_user_view(connection.inner(), login_request.email)
+                .await
+                .ok()
+                .flatten()
+                .unwrap_or_else(|| UserLoginView {
+                    id: -1, // dummy: verify_password will fail against DUMMY_HASH, preventing user enumeration
+                    password_hash: DUMMY_HASH.to_owned(),
+                });
 
-    let password: String = login_request.into_inner().password.to_owned();
+        let password: String = login_request.into_inner().password.to_owned();
 
-    let join_handle: JoinHandle<Option<String>> = task::spawn_blocking(move || {
-        let hash: PasswordHash = match PasswordHash::new(&password_hash) {
-            Ok(hash) => hash,
-            Err(err) => {
-                error!(error = %err, "Failed to parse password hash");
-                return None;
-            }
-        };
-
-        match ARGON_2.verify_password(password.as_bytes(), &hash) {
-            Ok(_) => match JWT::create(id as u32, TOKEN_LIFETIME) {
-                Ok(token) => {
-                    info!(id, "Login successful");
-                    Some(token)
-                }
+        let span: tracing::Span = tracing::Span::current();
+        let join_handle: JoinHandle<Option<String>> = task::spawn_blocking(move || {
+            let _guard: span::Entered = span.enter();
+            let hash: PasswordHash = match PasswordHash::new(&password_hash) {
+                Ok(hash) => hash,
                 Err(err) => {
-                    error!(error = %err, id, "Failed to create JWT");
+                    error!(error = %err, "Failed to parse password hash");
+                    return None;
+                }
+            };
+
+            match ARGON_2.verify_password(password.as_bytes(), &hash) {
+                Ok(_) => match JWT::create(id as u32, TOKEN_LIFETIME) {
+                    Ok(token) => {
+                        info!(id, "Login successful");
+                        Some(token)
+                    }
+                    Err(err) => {
+                        error!(error = %err, id, "Failed to create JWT");
+                        None
+                    }
+                },
+                Err(err) => {
+                    info!(error = %err, "Login failed");
                     None
                 }
-            },
+            }
+        });
+
+        match join_handle.await {
+            Ok(Some(token)) => {
+                let cookie: Cookie = Cookie::build(("token", token))
+                    .http_only(true)
+                    .secure(true)
+                    .same_site(SameSite::Lax)
+                    .build();
+                cookies.add(cookie);
+                Ok(Status::Ok)
+            }
+            Ok(None) => Err((Status::Unauthorized, "Invalid credentials")),
             Err(err) => {
-                info!(error = %err, "Login failed");
-                None
+                error!(error = %err, "Login task panicked");
+                Err((Status::InternalServerError, "Internal server error"))
             }
         }
-    });
-
-    match join_handle.await {
-        Ok(Some(token)) => {
-            let cookie: Cookie = Cookie::build(("token", token))
-                .http_only(true)
-                .secure(true)
-                .same_site(SameSite::Lax)
-                .build();
-            cookies.add(cookie);
-            Ok(Status::Ok)
-        }
-        Ok(None) => Err((Status::Unauthorized, "Invalid credentials")),
-        Err(err) => {
-            error!(error = %err, "Login task panicked");
-            Err((Status::InternalServerError, "Internal server error"))
-        }
     }
+    .instrument(span)
+    .await
 }
 
-async fn get_user_view(
-    db: &Pool<MySql>,
-    email: &str,
-) -> Result<Option<UserLoginView>, Error> {
+async fn get_user_view(db: &Pool<MySql>, email: &str) -> Result<Option<UserLoginView>, Error> {
     match sqlx::query(LOGIN_QUERY_STR)
         .bind(email)
         .fetch_optional(db)
