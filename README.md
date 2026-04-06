@@ -135,7 +135,7 @@ To regenerate after changing backend types:
 
 ```bash
 cd backend
-cargo test export_bindings
+cargo run --features "export_binding"
 ```
 
 ## Project Structure
