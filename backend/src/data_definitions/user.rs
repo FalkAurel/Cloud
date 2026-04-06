@@ -39,6 +39,11 @@ pub struct UserLoginRequest<'a> {
     pub(crate) password: &'a str,
 }
 
+pub(crate) struct UserLoginView {
+    pub(crate) id: i32,
+    pub(crate) password_hash: String,
+}
+
 #[cfg_attr(feature = "export_binding", derive(TS))]
 #[derive(Deserialize)]
 pub struct UserSignupRequest<'a> {

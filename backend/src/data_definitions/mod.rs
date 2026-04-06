@@ -6,4 +6,5 @@ pub(crate) use email::Email;
 pub use email::{EmailError, EmailSender, init_email_sender};
 pub use fixed_len_str::FixedSizedStr;
 pub use jwt::JWT;
+pub(crate) use user::UserLoginView;
 pub use user::{StandardUserView, UserLoginRequest, UserSignupRequest};
