@@ -27,8 +27,6 @@ fn hi() -> String {
 #[cfg(not(feature = "export_binding"))]
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
-    use std::path::PathBuf;
-
     let mut server_config: Config = Config::default();
 
     server_config.port = 3000;
