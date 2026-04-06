@@ -73,22 +73,30 @@ async fn main() -> Result<(), rocket::Error> {
 
     tracing::info!(level = %*TRACE_LEVEL, "Tracing initialized");
 
+    let _rocket: Rocket<rocket::Ignite> = build_rocket(server_config).await.launch().await.unwrap();
+    Ok(())
+}
+
+async fn build_rocket(server_config: Config) -> Rocket<rocket::Build> {
     let cors: rocket_cors::Cors = CorsOptions::default()
         .allowed_origins(AllowedOrigins::some_exact(&["http://localhost:5173"]))
         .allow_credentials(true)
         .to_cors()
         .expect("Failed to build CORS");
 
-    let _rocket: Rocket<rocket::Ignite> = rocket::build()
+    let mut rocket: Rocket<rocket::Build> = rocket::build()
         .configure(server_config)
         .mount("/", routes![hi, health, login_request, signup_request])
-        .manage(init_db().await)
-        .manage(init_email_sender().unwrap())
-        .attach(cors)
-        .launch()
-        .await?;
+        .attach(cors);
 
-    Ok(())
+    #[cfg(feature = "email")]
+    {
+        rocket = rocket.manage(init_email_sender().unwrap());
+    }
+
+    rocket = rocket.manage(init_db().await);
+
+    rocket
 }
 
 #[cfg(feature = "export_binding")]

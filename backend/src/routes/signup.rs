@@ -7,7 +7,11 @@ use rocket::tokio::task::JoinHandle;
 use rocket::{State, post, tokio};
 use sqlx::{Error as SQLError, MySql, Pool, Row};
 use std::env;
+use std::num::NonZero;
+use std::pin::Pin;
 use std::sync::LazyLock;
+use std::time::Duration;
+use tokio::time::sleep;
 use tracing::{error, info, warn};
 
 use crate::ARGON_2;
@@ -18,6 +22,11 @@ use argon2::password_hash::{SaltString, rand_core::OsRng};
 const MIN_PASSWORD_LENGTH: u8 = 8;
 const MAX_PASSWORD_LENGTH: u8 = 255;
 
+#[cfg(feature = "email")]
+const DELETE_USER_QUERY_STR: &str = r#"
+DELETE LOW_PRIORITY FROM users WHERE email = ?;
+"#;
+
 const INSERT_QUERY_STR: &str = r#"
 INSERT INTO users (name, email, password) VALUES (?, ?, ?);
 "#;
@@ -26,12 +35,20 @@ const CHECK_EMAIL_EXISTS: &str = r#"
 SELECT EXISTS(SELECT 1 FROM users WHERE email = ?);
 "#;
 
+#[cfg(feature = "email")]
 const SENDER_ADDRESS: LazyLock<Address> = LazyLock::new(|| {
     env::var("MAILER_USER")
         .expect("MAILER_USER must be set")
         .parse()
         .expect("MAILER_USER must be a valid email address")
 });
+
+#[cfg(feature = "email")]
+const RETRY_WAIT_TIME: Duration = Duration::from_secs(30);
+
+#[cfg(feature = "email")]
+const RETRIES: Option<NonZero<u8>> = NonZero::new(3);
+
 const SIGN_UP_SUBJECT: &str = "Welcome to your own Cloud – You're all set!";
 const SIGN_UP_HTML: &str = include_str!("signup_confirmation.html");
 
@@ -41,6 +58,10 @@ pub async fn signup(
     db: &State<Pool<MySql>>,
     email_sender: &State<EmailSender>,
 ) -> Result<Status, (Status, &'static str)> {
+    if !verify_password(signup_request.password) {
+        return Err((Status::BadRequest, "Password length is invalid"));
+    }
+
     let validated_email: Address = match signup_request.email.parse() {
         Ok(email) => email,
         Err(err) => {
@@ -48,10 +69,6 @@ pub async fn signup(
             return Err((Status::BadRequest, "Invalid email address"));
         }
     };
-
-    if !verify_password(signup_request.password) {
-        return Err((Status::BadRequest, "Password length is invalid"));
-    }
 
     match email_exists(db, signup_request.email).await {
         Ok(true) => {
@@ -94,11 +111,8 @@ pub async fn signup(
         .await
     {
         Ok(_) => {
-            let email: Email = Email::new(SENDER_ADDRESS.clone(), validated_email)
-                .set_subject(SIGN_UP_SUBJECT)
-                .set_html_content(SIGN_UP_HTML);
-            let _ = send_email(email_sender, email).await;
-            info!("User signed up successfully");
+            #[cfg(feature = "email")]
+            handle_signup_email(email_sender, validated_email, signup_request.email, db).await?;
             Ok(Status::Created)
         }
         Err(err) => {
@@ -112,24 +126,101 @@ fn verify_password(password: &str) -> bool {
     MIN_PASSWORD_LENGTH as usize <= password.len() && password.len() <= MAX_PASSWORD_LENGTH as usize
 }
 
-async fn send_email(email_sender: &State<EmailSender>, email: Email<'_>) -> Result<(), EmailError> {
-    info!("Sending email");
-    let response: Response = email.send(email_sender).await?;
+#[cfg(feature = "email")]
+async fn handle_signup_email(
+    email_sender: &State<EmailSender>,
+    email_address: Address,
+    raw_email: &str,
+    db: &Pool<MySql>,
+) -> Result<(), (Status, &'static str)> {
+    let email: Email = Email::new(SENDER_ADDRESS.clone(), email_address)
+        .set_subject(SIGN_UP_SUBJECT)
+        .set_html_content(SIGN_UP_HTML);
 
-    match response.code().severity {
-        Severity::PositiveCompletion | Severity::PositiveIntermediate => {
-            info!("Email sent successfully");
+    match &*send_email(email_sender, email, RETRIES).await {
+        Ok(Ok(_)) => {
+            info!("User signed up successfully");
+            return Ok(());
         }
-        Severity::TransientNegativeCompletion => {
-            let error: &str = response.message().next().unwrap_or("Unknown Error");
-            warn!(code = ?response.code(), error=%error, "Transient email failure");
+        Ok(Err(response)) => {
+            warn!(code = ?response.code(), "Email failed to send, but user was created");
+            match revert_signup(raw_email, db).await {
+                Ok(_) => Ok(()),
+                Err(err) => {
+                    error!(error=%err, "Failed to revert email");
+                    Err((Status::InternalServerError, "Fuck Life"))
+                }
+            }
         }
-        Severity::PermanentNegativeCompletion => {
-            warn!(code = ?response.code(), "Permanent email failure");
+        Err(err) => {
+            error!(error = %err, "Failed to send email");
+            match revert_signup(raw_email, db).await {
+                Ok(_) => Ok(()),
+                Err(err) => {
+                    error!(error=%err, "Failed to revert email");
+                    Err((Status::InternalServerError, "Fuck Life"))
+                }
+            }
         }
     }
+}
+
+#[cfg(feature = "email")]
+async fn revert_signup(email: &str, db: &Pool<MySql>) -> Result<(), SQLError> {
+    sqlx::query(DELETE_USER_QUERY_STR)
+        .bind(email)
+        .execute(db)
+        .await?;
 
     Ok(())
+}
+
+#[cfg(feature = "email")]
+async fn send_email(
+    email_sender: &State<EmailSender>,
+    email: Email<'_>,
+    retries: Option<NonZero<u8>>,
+) -> Pin<Box<Result<Result<Response, Response>, EmailError>>> {
+    info!("Sending email");
+
+    let response: Result<Response, Response> = match email.cheap_clone().send(email_sender).await {
+        Ok(response) => match response.code().severity {
+            Severity::TransientNegativeCompletion => {
+                let error: &str = response.message().next().unwrap_or("Unknown Error");
+
+                if let Some(retries) = retries {
+                    info!(remaining_retries = retries.get(), "Retrying email...");
+                    sleep(RETRY_WAIT_TIME).await;
+
+                    return Box::pin(send_email(
+                        email_sender,
+                        email.cheap_clone(),
+                        NonZero::new(retries.get() - 1),
+                    ))
+                    .await;
+                }
+
+                warn!(code = ?response.code(), error = %error, "Transient email failure");
+                Err(response)
+            }
+
+            Severity::PermanentNegativeCompletion => {
+                warn!(code = ?response.code(), "Permanent email failure");
+                Err(response)
+            }
+
+            Severity::PositiveCompletion | Severity::PositiveIntermediate => {
+                info!(code = ?response.code(), "Email sent successfully");
+                Ok(response)
+            }
+        },
+        Err(err) => {
+            error!(error = %err, "Failed to send email");
+            return Box::pin(Err(err));
+        }
+    };
+
+    Box::pin(Ok(response))
 }
 
 async fn email_exists(db: &Pool<MySql>, email: &str) -> Result<bool, SQLError> {
@@ -146,8 +237,11 @@ mod tests {
     use rocket::local::asynchronous::Client;
 
     use super::*;
+
+    #[cfg(feature = "email")]
     use crate::data_definitions::init_email_sender;
 
+    #[cfg(feature = "email")]
     async fn build_test_client() -> Client {
         let rocket = rocket::build()
             .mount("/", rocket::routes![signup])
@@ -195,6 +289,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "email")]
     #[ignore = "requires database and SMTP relay"]
     async fn signup_returns_201_for_new_user() {
         let client = build_test_client().await;
@@ -209,6 +304,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "email")]
     #[ignore = "requires database and SMTP relay"]
     async fn signup_returns_409_for_duplicate_email() {
         let client = build_test_client().await;
@@ -231,6 +327,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "email")]
     #[ignore = "requires database and SMTP relay"]
     async fn signup_returns_400_for_invalid_email() {
         let client = build_test_client().await;
@@ -244,6 +341,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "email")]
     #[ignore = "requires database and SMTP relay"]
     async fn signup_returns_400_for_short_password() {
         let client = build_test_client().await;
