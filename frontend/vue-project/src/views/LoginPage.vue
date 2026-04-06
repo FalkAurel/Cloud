@@ -1,12 +1,21 @@
 <template>
   <div class="Login-Page-Wrapper">
     <div class="Login-View">
+    <BaseNotification
+      v-model:show="showNotification"
+      :type="notificationType"
+      :duration="3000"
+    >
+      {{ notificationMessage }}
+    </BaseNotification>
+
+
       <div class="Login-Input-Fields">
         <BaseInput v-model.trim="email" placeholder="Email" />
         <BaseInput v-model.trim="password" placeholder="Password" type="password" />
       </div>
 
-      <BaseButton v-bind:disabled="!email || !password" @click="login"> Login </BaseButton>
+      <BaseButton :disabled="!email || !password || isLoading" @click="login"> Login </BaseButton>
       <CallToAction text="Don't have an account? Sign up" route="/signup" />
     </div>
   </div>
@@ -17,54 +26,55 @@ import { ref } from 'vue'
 import BaseInput from '../components/ui/BaseInput.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import CallToAction from '../components/ui/CallToAction.vue'
-import { useAuthStore } from '@/stores/auth'
-import axios, { type AxiosResponse } from 'axios'
 import router from '@/router'
+import type { UserLoginRequest } from '@/types/bindings/UserLoginRequest'
+import BaseNotification from '@/components/ui/BaseNotification.vue'
 
+
+const showNotification = ref(false)
+const notificationMessage = ref('')
+const notificationType = ref<'success' | 'error' | 'info'>('info')
 const email = ref('')
 const password = ref('')
+const isLoading = ref(false)
+const login_url: string = "http://localhost:8000/login"
 
-async function login(): Promise<void> {
-  console.log(`Attempting login with email: ${email.value}`)
+async function login() {
+  if (isLoading.value) return
+  isLoading.value = true
+  const login_request: UserLoginRequest = {
+    email: email.value,
+    password: password.value
+  }
 
-  {
-    let response: AxiosResponse<{ jwt: string; name: string; is_admin: boolean }>
-
-    try {
-      response = await axios.post('/api/login', {
-        email: email.value,
-        password: password.value,
-      })
-    } catch (error: unknown) {
-      let message = 'Login failed: network or server error'
-
-      if (axios.isAxiosError(error)) {
-        if (error.response) {
-          message = `Login failed: ${error.response.statusText}`
-        } else if (error.message) {
-          message = `Login failed: ${error.message}`
-        }
-      }
-
-      console.error('Login error:', error)
-      alert(message)
-      return
-    }
-
-    if (response.status !== 200) {
-      alert(`Login failed: ${response.statusText}`)
-      return
-    }
-
-    const authStore = useAuthStore()
-    authStore.login({
-      email: email.value,
-      jwt: response.data.jwt,
-      name: response.data.name,
-      is_admin: response.data.is_admin,
+  try {
+    const response: Response = await fetch(login_url, {
+      method: "POST",
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/plain'
+      },
+      body: JSON.stringify(login_request),
+      credentials: 'include',
     })
 
-    router.push('/home')
+    const message: string = await response.text()
+    if (response.status === 200) {
+      notificationMessage.value = message || "Login Successful"
+      notificationType.value = 'success'
+      showNotification.value = true
+      router.push('/home')
+    } else {
+      notificationMessage.value = message
+      notificationType.value = 'info'
+      showNotification.value = true
+    }
+  } catch (e: unknown) {
+      notificationMessage.value = e instanceof Error ? e.message : String(e)
+      notificationType.value = 'error'
+      showNotification.value = true
+  } finally {
+    isLoading.value = false
   }
 }
 </script>
