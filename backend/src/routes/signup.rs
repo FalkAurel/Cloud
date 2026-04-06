@@ -42,6 +42,13 @@ const SENDER_ADDRESS: LazyLock<Address> = LazyLock::new(|| {
         .parse()
         .expect("MAILER_USER must be a valid email address")
 });
+
+#[cfg(feature = "email")]
+const RETRY_WAIT_TIME: Duration = Duration::from_secs(30);
+
+#[cfg(feature = "email")]
+const RETRIES: Option<NonZero<u8>> = NonZero::new(3);
+
 const SIGN_UP_SUBJECT: &str = "Welcome to your own Cloud – You're all set!";
 const SIGN_UP_HTML: &str = include_str!("signup_confirmation.html");
 
@@ -130,7 +137,7 @@ async fn handle_signup_email(
         .set_subject(SIGN_UP_SUBJECT)
         .set_html_content(SIGN_UP_HTML);
 
-    match &*send_email(email_sender, email, None).await {
+    match &*send_email(email_sender, email, RETRIES).await {
         Ok(Ok(_)) => {
             info!("User signed up successfully");
             return Ok(());
@@ -183,7 +190,7 @@ async fn send_email(
 
                 if let Some(retries) = retries {
                     info!(remaining_retries = retries.get(), "Retrying email...");
-                    sleep(Duration::from_secs(30)).await;
+                    sleep(RETRY_WAIT_TIME).await;
 
                     return Box::pin(send_email(
                         email_sender,
