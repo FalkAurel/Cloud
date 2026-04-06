@@ -8,7 +8,6 @@ use rocket::{State, post, tokio};
 use sqlx::{Error as SQLError, MySql, Pool, Row};
 use std::env;
 use std::num::NonZero;
-use std::pin::Pin;
 use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -112,7 +111,12 @@ pub async fn signup(
     {
         Ok(_) => {
             #[cfg(feature = "email")]
-            handle_signup_email(email_sender, validated_email, signup_request.email, db).await?;
+            {
+                let sender = email_sender.inner().clone();
+                let pool = db.inner().clone();
+                let raw_email = signup_request.email.to_owned();
+                tokio::spawn(handle_signup_email(sender, validated_email, raw_email, pool));
+            }
             Ok(Status::Created)
         }
         Err(err) => {
@@ -128,38 +132,29 @@ fn verify_password(password: &str) -> bool {
 
 #[cfg(feature = "email")]
 async fn handle_signup_email(
-    email_sender: &State<EmailSender>,
+    email_sender: EmailSender,
     email_address: Address,
-    raw_email: &str,
-    db: &Pool<MySql>,
-) -> Result<(), (Status, &'static str)> {
+    raw_email: String,
+    db: Pool<MySql>,
+) {
     let email: Email = Email::new(SENDER_ADDRESS.clone(), email_address)
         .set_subject(SIGN_UP_SUBJECT)
         .set_html_content(SIGN_UP_HTML);
 
-    match &*send_email(email_sender, email, RETRIES).await {
+    match send_email(&email_sender, email, RETRIES).await {
         Ok(Ok(_)) => {
             info!("User signed up successfully");
-            return Ok(());
         }
         Ok(Err(response)) => {
             warn!(code = ?response.code(), "Email failed to send, but user was created");
-            match revert_signup(raw_email, db).await {
-                Ok(_) => Ok(()),
-                Err(err) => {
-                    error!(error=%err, "Failed to revert email");
-                    Err((Status::InternalServerError, "Fuck Life"))
-                }
+            if let Err(err) = revert_signup(&raw_email, &db).await {
+                error!(error=%err, "Failed to revert signup after email failure");
             }
         }
         Err(err) => {
             error!(error = %err, "Failed to send email");
-            match revert_signup(raw_email, db).await {
-                Ok(_) => Ok(()),
-                Err(err) => {
-                    error!(error=%err, "Failed to revert email");
-                    Err((Status::InternalServerError, "Fuck Life"))
-                }
+            if let Err(err) = revert_signup(&raw_email, &db).await {
+                error!(error=%err, "Failed to revert signup after email failure");
             }
         }
     }
@@ -177,50 +172,43 @@ async fn revert_signup(email: &str, db: &Pool<MySql>) -> Result<(), SQLError> {
 
 #[cfg(feature = "email")]
 async fn send_email(
-    email_sender: &State<EmailSender>,
+    email_sender: &EmailSender,
     email: Email<'_>,
     retries: Option<NonZero<u8>>,
-) -> Pin<Box<Result<Result<Response, Response>, EmailError>>> {
-    info!("Sending email");
+) -> Result<Result<Response, Response>, EmailError> {
+    let attempts = retries.map_or(1, |r| r.get() + 1);
 
-    let response: Result<Response, Response> = match email.cheap_clone().send(email_sender).await {
-        Ok(response) => match response.code().severity {
-            Severity::TransientNegativeCompletion => {
-                let error: &str = response.message().next().unwrap_or("Unknown Error");
-
-                if let Some(retries) = retries {
-                    info!(remaining_retries = retries.get(), "Retrying email...");
-                    sleep(RETRY_WAIT_TIME).await;
-
-                    return Box::pin(send_email(
-                        email_sender,
-                        email.cheap_clone(),
-                        NonZero::new(retries.get() - 1),
-                    ))
-                    .await;
+    for attempt in 0..attempts {
+        info!("Sending email");
+        match email.clone().send(email_sender).await {
+            Ok(response) => match response.code().severity {
+                Severity::TransientNegativeCompletion => {
+                    let error = response.message().next().unwrap_or("Unknown Error");
+                    if attempt < attempts - 1 {
+                        warn!(remaining = attempts - attempt - 1, error, "Transient failure, retrying...");
+                        sleep(RETRY_WAIT_TIME).await;
+                        continue;
+                    }
+                    warn!(code = ?response.code(), error, "Transient failure, retries exhausted");
+                    return Ok(Err(response));
                 }
-
-                warn!(code = ?response.code(), error = %error, "Transient email failure");
-                Err(response)
+                Severity::PermanentNegativeCompletion => {
+                    warn!(code = ?response.code(), "Permanent email failure");
+                    return Ok(Err(response));
+                }
+                Severity::PositiveCompletion | Severity::PositiveIntermediate => {
+                    info!(code = ?response.code(), "Email sent successfully");
+                    return Ok(Ok(response));
+                }
+            },
+            Err(err) => {
+                error!(error = %err, "Failed to send email");
+                return Err(err);
             }
-
-            Severity::PermanentNegativeCompletion => {
-                warn!(code = ?response.code(), "Permanent email failure");
-                Err(response)
-            }
-
-            Severity::PositiveCompletion | Severity::PositiveIntermediate => {
-                info!(code = ?response.code(), "Email sent successfully");
-                Ok(response)
-            }
-        },
-        Err(err) => {
-            error!(error = %err, "Failed to send email");
-            return Box::pin(Err(err));
         }
-    };
+    }
 
-    Box::pin(Ok(response))
+    unreachable!()
 }
 
 async fn email_exists(db: &Pool<MySql>, email: &str) -> Result<bool, SQLError> {

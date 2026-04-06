@@ -91,6 +91,7 @@ pub fn init_email_sender() -> Result<EmailSender, EmailError> {
     Ok(email_sender)
 }
 
+#[derive(Clone)]
 pub(crate) struct Email<'a> {
     sender: Address,
     receiver: Address,
@@ -128,16 +129,6 @@ impl<'a> Email<'a> {
         Self {
             text_content: Some(text_content),
             ..self
-        }
-    }
-
-    pub(crate) fn cheap_clone(&self) -> Self {
-        Self {
-            sender: self.sender.clone(),
-            receiver: self.receiver.clone(),
-            subject: self.subject,
-            html_content: self.html_content,
-            text_content: self.text_content,
         }
     }
 
