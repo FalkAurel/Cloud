@@ -1,5 +1,5 @@
 #![allow(unused)]
-use std::{env, time::Duration};
+use std::{env, fmt, time::Duration};
 
 use tracing::info;
 
@@ -19,6 +19,17 @@ pub enum EmailError {
     SendError(PrivateSendError),
     AddressError(AddressError),
     InitializationError(&'static str),
+}
+
+impl fmt::Display for EmailError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EmailError::EmailError(e) => write!(f, "Email error: {}", e),
+            EmailError::SendError(e) => write!(f, "Send error: {}", e),
+            EmailError::AddressError(e) => write!(f, "Address error: {}", e),
+            EmailError::InitializationError(e) => write!(f, "Initialization error: {}", e),
+        }
+    }
 }
 
 impl From<PrivateEmailError> for EmailError {
@@ -117,6 +128,16 @@ impl<'a> Email<'a> {
         Self {
             text_content: Some(text_content),
             ..self
+        }
+    }
+
+    pub(crate) fn cheap_clone(&self) -> Self {
+        Self {
+            sender: self.sender.clone(),
+            receiver: self.receiver.clone(),
+            subject: self.subject,
+            html_content: self.html_content,
+            text_content: self.text_content,
         }
     }
 

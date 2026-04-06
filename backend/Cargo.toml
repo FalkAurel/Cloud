@@ -8,7 +8,7 @@ argon2 = "0.5.3"
 fastrace = "0.7.17"
 jsonwebtoken = {version = "10.3.0", features = ["aws_lc_rs"]}
 # For Linux: lettre = { version = "0.11.20", default-features = false, features = ["tokio1", "tokio1-rustls", "smtp-transport", "ring", "webpki-roots", "builder", "pool"] }
-lettre = { version = "0.11.20", default-features = false, features = ["tokio1", "tokio1-rustls", "smtp-transport", "aws-lc-rs", "webpki-roots", "builder", "pool"] }
+lettre = { version = "0.11.20", default-features = false, features = ["tokio1", "tokio1-rustls", "smtp-transport", "aws-lc-rs", "webpki-roots", "builder", "pool"], optional=true }
 rocket = { version = "0.5.1", features = ["json"] }
 rustls-webpki = { version = "0.103", default-features = false, features = ["aws-lc-rs"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "std", "tls12"] }
@@ -29,7 +29,9 @@ opt-level = 0
 
 
 [features]
+default = ["email"]
 export_binding = ["ts-rs"]
+email = ["lettre"]
 
 [profile.release]
 opt-level = 3
