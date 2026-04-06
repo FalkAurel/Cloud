@@ -26,7 +26,7 @@ defineProps({
 }
 
 .call-to-action span {
-  color: #42b983;
+  color: #0070d2;
   font-weight: 500;
   cursor: pointer;
   text-decoration: none;
@@ -34,5 +34,6 @@ defineProps({
 
 .call-to-action span:hover {
   text-decoration: underline;
+  color: #003580;
 }
 </style>

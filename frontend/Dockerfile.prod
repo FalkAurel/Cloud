@@ -1,0 +1,14 @@
+# Stage 1: build
+FROM node:24-alpine AS builder
+WORKDIR /app
+COPY vue-project/package*.json ./
+RUN npm ci
+COPY vue-project/ .
+RUN npm run build
+
+# Stage 2: serve — only the nginx binary + static files end up in the image
+FROM nginx:stable-alpine-slim
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.prod.conf /etc/nginx/nginx.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

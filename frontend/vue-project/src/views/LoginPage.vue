@@ -37,7 +37,7 @@ const notificationType = ref<'success' | 'error' | 'info'>('info')
 const email = ref('')
 const password = ref('')
 const isLoading = ref(false)
-const login_url: string = "http://localhost:8000/login"
+const login_url: string = `${import.meta.env.VITE_API_BASE}/login`
 
 async function login() {
   if (isLoading.value) return
@@ -82,23 +82,23 @@ async function login() {
 <style scoped>
 .Login-Page-Wrapper {
   display: flex;
-  justify-content: center; /* horizontal centering */
-  align-items: center; /* vertical centering */
-  height: 100vh; /* full viewport height */
-  background-color: #f9fafb; /* optional light background */
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-color: #f0f4f9;
 }
 
-/* Actual login card */
 .Login-View {
   display: flex;
   flex-direction: column;
   gap: 12px;
   width: 90%;
   max-width: 400px;
-  padding: 24px;
+  padding: 32px;
   background-color: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0, 53, 128, 0.1);
+  border-top: 3px solid #003580;
 }
 
 .Login-Input-Fields {

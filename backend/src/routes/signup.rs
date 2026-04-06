@@ -176,7 +176,7 @@ async fn send_email(
     email: Email<'_>,
     retries: Option<NonZero<u8>>,
 ) -> Result<Result<Response, Response>, EmailError> {
-    let attempts = retries.map_or(1, |r| r.get() + 1);
+    let attempts: u8 = retries.map_or(1, |r| r.get() + 1);
 
     for attempt in 0..attempts {
         info!("Sending email");

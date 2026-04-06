@@ -1,33 +1,45 @@
 services:
   backend:
     build:
-      context: $PWD/backend
+      context: ../backend
       dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
-    env_file:
-      - .env
-    environment:
-      - MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD
-      - MINIO_ROOT_USER=$MINIO_ROOT_USER
-      - BUCKET_NAME=$BUCKET_NAME
+    env_file: ../.env
     depends_on:
-      - minio
-      - minio_create_default_bucket
+      minio:
+        condition: service_healthy
+      minio_create_default_bucket:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
     networks:
       - internal_network
 
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.prod
+    networks:
+      - internal_network
+    restart: unless-stopped
+
+  db:
+    image: mariadb:12.2-noble
+    env_file: ../.env
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - internal_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -uroot -p$$MARIADB_ROOT_PASSWORD"]
+      interval: 10s
+      retries: 5
+      timeout: 3s
+
   minio:
     image: minio/minio
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    env_file:
-      - .env
-    environment:
-      - MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD
-      - MINIO_ROOT_USER=$MINIO_ROOT_USER
-      - BUCKET_NAME=$BUCKET_NAME
+    env_file: ../.env
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
@@ -35,43 +47,41 @@ services:
       - internal_network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://minio:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 5s
       retries: 5
       start_period: 5s
       timeout: 3s
 
-  reverse_proxy:
-    build:
-      context: $PWD/reverse_proxy
-      dockerfile: Dockerfile
-    ports:
-      - "80:80"
-      - "443:443"
-    depends_on:
-      - backend
-    networks:
-      - internal_network
-    restart: unless-stopped
-
   minio_create_default_bucket:
     image: minio/mc
-    env_file:
-      - .env
-    environment:
-      - MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD
-      - MINIO_ROOT_USER=$MINIO_ROOT_USER
-      - BUCKET_NAME=$BUCKET_NAME
+    env_file: ../.env
+    restart: "no"
     depends_on:
       minio:
         condition: service_healthy
     networks:
       - internal_network
     entrypoint: >
-      sh -c "mc alias set minio http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD && \
-             mc mb --ignore-existing minio/$BUCKET_NAME"
+      sh -c "mc alias set minio http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
+             mc mb --ignore-existing minio/$$BUCKET_NAME"
+
+  reverse_proxy:
+    build:
+      context: ../reverse_proxy
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - internal_network
+    restart: unless-stopped
 
 volumes:
+  db_data:
   minio_data:
 
 networks:

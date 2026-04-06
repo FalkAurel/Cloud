@@ -4,7 +4,7 @@ use rocket::serde::json::Json;
 use rocket::tokio::task::{self, JoinHandle};
 use rocket::{State, post};
 use sqlx::{Error, MySql, Pool, Row};
-use tracing::{Instrument, error, info, info_span, span, warn};
+use tracing::{Instrument, error, info, info_span, warn};
 
 use crate::data_definitions::{JWT, UserLoginRequest, UserLoginView};
 use crate::{ARGON_2, TOKEN_LIFETIME};
@@ -37,9 +37,9 @@ pub async fn login(
 
         let password: String = login_request.into_inner().password.to_owned();
 
-        let span: tracing::Span = tracing::Span::current();
+        let blocking_span = tracing::Span::current();
         let join_handle: JoinHandle<Option<String>> = task::spawn_blocking(move || {
-            let _guard: span::Entered = span.enter();
+            let _guard = blocking_span.enter();
             let hash: PasswordHash = match PasswordHash::new(&password_hash) {
                 Ok(hash) => hash,
                 Err(err) => {

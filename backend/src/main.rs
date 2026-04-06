@@ -51,7 +51,7 @@ async fn main() -> Result<(), rocket::Error> {
             .with_file(true)
             .with_line_number(true)
             .with_target(false)
-            .with_span_events(FmtSpan::ENTER | FmtSpan::CLOSE)
+            .with_span_events(FmtSpan::CLOSE)
             .finish();
 
         tracing::subscriber::set_global_default(subscriber)
@@ -64,7 +64,7 @@ async fn main() -> Result<(), rocket::Error> {
             .with_file(true)
             .with_line_number(true)
             .with_target(false)
-            .with_span_events(FmtSpan::ENTER | FmtSpan::CLOSE)
+            .with_span_events(FmtSpan::CLOSE)
             .finish();
 
         tracing::subscriber::set_global_default(subscriber)
@@ -79,7 +79,7 @@ async fn main() -> Result<(), rocket::Error> {
 
 async fn build_rocket(server_config: Config) -> Rocket<rocket::Build> {
     let cors: rocket_cors::Cors = CorsOptions::default()
-        .allowed_origins(AllowedOrigins::some_exact(&["http://localhost:5173"]))
+        .allowed_origins(AllowedOrigins::some_exact(&["http://localhost:5173", "https://localhost"]))
         .allow_credentials(true)
         .to_cors()
         .expect("Failed to build CORS");

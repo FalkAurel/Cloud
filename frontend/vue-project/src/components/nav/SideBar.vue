@@ -1,5 +1,10 @@
 <template>
   <nav :class="['sidebar', { expanded }]">
+    <div class="sidebar-brand">
+      <div class="brand-icon">CL</div>
+      <span class="label" v-if="expanded">Cloud</span>
+    </div>
+
     <ul>
       <li v-for="item in items" v-bind:key="item.name" @click="navigate(item.route)">
         <span class="icon">
@@ -10,8 +15,7 @@
     </ul>
 
     <footer class="sidebar-footer" v-if="expanded">
-      <p class="about-label">About Us</p>
-      <p class="company-info">© 2023 Your Company</p>
+      © 2024 Cloud
     </footer>
 
     <button class="toggle-btn" @click="expanded = !expanded">
@@ -25,11 +29,11 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import HomeIcon from '@/assets/navigation/home.svg'
-import UserIcon from '@/assets/navigation/user.svg'
-import GroupIcon from '@/assets/navigation/group.svg'
-import SettingsIcon from '@/assets/navigation/settings.svg'
-import AdminIcon from '@/assets/navigation/admin.svg'
+import HomeIcon from '@/assets/navigation/home.svg?url'
+import UserIcon from '@/assets/navigation/user.svg?url'
+import GroupIcon from '@/assets/navigation/group.svg?url'
+import SettingsIcon from '@/assets/navigation/settings.svg?url'
+import AdminIcon from '@/assets/navigation/admin.svg?url'
 
 const expanded = ref(false)
 const router = useRouter()
@@ -68,95 +72,124 @@ function navigate(route: string) {
   top: 0;
   left: 0;
   height: 100vh;
-  width: 18%;
-  max-width: 50px;
-  background-color: #1f2937;
+  width: 56px;
+  background-color: #003580;
   color: white;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  transition: width 0.3s ease;
+  transition: width 0.25s ease;
   overflow: hidden;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
-  padding-top: 12px;
+  flex-shrink: 0;
 }
 
 .sidebar.expanded {
-  width: 200px;
-  max-width: 200px;
+  width: 220px;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  min-height: 56px;
+}
+
+.brand-icon {
+  width: 36px;
+  height: 36px;
+  background: white;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 14px;
+  color: #003580;
+  letter-spacing: -0.5px;
+}
+
+.brand-name {
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
 }
 
 .sidebar ul {
   list-style: none;
-  padding: 0;
+  padding: 8px 0;
   margin: 0;
-  flex: 1; /* make list take available space */
+  flex: 1;
 }
 
 .sidebar li {
   display: flex;
   align-items: center;
-  padding: 12px;
+  padding: 0 10px;
+  height: 44px;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background 0.15s ease;
+  border-left: 3px solid transparent;
+  gap: 12px;
 }
 
 .sidebar li:hover {
-  background-color: #374151;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-left-color: rgba(255, 255, 255, 0.4);
 }
 
 .icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 33px;
+  height: 33px;
+  flex-shrink: 0;
 }
 
 .icon img {
-  max-width: 24px;
-  max-height: 24px;
+  width: 20px;
+  height: 20px;
+  filter: brightness(0) invert(1);
+  opacity: 0.85;
+}
+
+.sidebar li:hover .icon img {
+  opacity: 1;
 }
 
 .label {
-  margin-left: 12px;
+  font-size: 14px;
   font-weight: 500;
+  white-space: nowrap;
+  opacity: 0.9;
 }
 
 .sidebar-footer {
-  margin-top: auto;
-  padding: 12px;
-  font-size: 12px;
-  text-align: center;
-  background-color: #111827;
-  color: #9ca3af;
-}
-
-.about-label {
-  font-weight: 600;
-  margin-bottom: 4px;
-  font-size: 13px;
-}
-
-.company-info {
-  font-size: 12px;
+  padding: 12px 10px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  white-space: nowrap;
 }
 
 .toggle-btn {
   position: absolute;
-  bottom: 12px;
-  right: 12px;
-  background: none;
+  bottom: 16px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.1);
   border: none;
   color: white;
-  font-size: 18px;
+  font-size: 12px;
   cursor: pointer;
-  padding: 6px 12px;
-  border-radius: 6px;
-  transition: right 0.3s ease;
+  padding: 6px 8px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
 }
 
 .toggle-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.2);
 }
 </style>

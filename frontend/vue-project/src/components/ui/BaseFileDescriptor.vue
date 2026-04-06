@@ -1,11 +1,22 @@
 <template>
   <div class="file-descriptor">
+    <div class="file-actions">
+      <button class="icon-btn" title="Download">
+        <DownloadIcon />
+      </button>
+      <button class="icon-btn" title="Share">
+        <ShareIcon />
+      </button>
+      <button class="icon-btn danger" title="Delete">
+        <TrashIcon />
+      </button>
+    </div>
+
     <div class="file-header">
       <div class="file-icon">
         <img v-if="returnIcon(fileName).includes('.svg')" :src="returnIcon(fileName)" />
         <span v-else>{{ returnIcon(fileName) }}</span>
       </div>
-
       <div class="file-name">{{ fileName }}</div>
     </div>
 
@@ -14,29 +25,26 @@
         <span class="label">Size</span>
         <span class="value">{{ returnBytesFormated(fileSize) }}</span>
       </div>
-
       <div class="meta-row">
         <span class="label">Created</span>
         <span class="value">{{ returnDateFormated(created_at) }}</span>
       </div>
-
       <div class="meta-row">
         <span class="label">Modified</span>
         <span class="value">{{ returnDateFormated(last_modified_at) }}</span>
       </div>
     </div>
-
-    <div class="file-actions">
-      <button class="btn">Open</button>
-      <button class="btn">Download</button>
-      <button class="btn">Share</button>
-      <button class="btn danger">Delete</button>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import DOCXIcon from '@/assets/fileDescriptors/docx.svg'
+import DOCXIcon from '@/assets/fileDescriptors/docx.svg?url'
+// @ts-ignore — installed in container via postCreateCommand
+import DownloadIcon from '@/assets/icons/download.svg?component'
+// @ts-ignore
+import ShareIcon from '@/assets/icons/share.svg?component'
+// @ts-ignore
+import TrashIcon from '@/assets/icons/trash.svg?component'
 interface FileProps {
   fileName: string
   fileSize: number // in Bytes
@@ -107,77 +115,67 @@ function plurals(value: number, unit: string): string {
 
 <style scoped>
 .file-descriptor {
+  position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
 
   width: 200px;
-  height: 200px; /* same as width → square tile */
-
-  padding: 16px;
 
   background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border: 1px solid #dde3ed;
+  border-radius: 4px;
+  border-top: 3px solid #003580;
 
-  transition: all 0.2s ease;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .file-descriptor:hover {
-  border-color: #d1d5db;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 16px rgba(0, 53, 128, 0.12);
   transform: translateY(-2px);
 }
-
-/* header */
 
 .file-header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  text-align: center;
+  padding: 20px 16px 12px;
+  gap: 8px;
 }
 
 .file-icon {
-  width: 56px;
-  height: 56px;
-
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-
-  background: #f3f4f6;
-  border-radius: 10px;
-
-  margin-bottom: 6px;
+  background: #f0f4f9;
+  border-radius: 4px;
+  font-size: 24px;
 }
 
 .file-icon img {
-  width: 28px;
+  width: 26px;
 }
 
 .file-name {
   font-weight: 600;
-  font-size: 14px;
-  color: #111827;
-
+  font-size: 13px;
+  color: #003580;
   max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: center;
 }
 
-/* metadata */
-
 .file-meta {
-  margin-top: 10px;
-  font-size: 12px;
+  padding: 0 16px 12px;
+  font-size: 11px;
   color: #6b7280;
-  flex: 1; /* take available space → push actions to bottom */
   display: flex;
   flex-direction: column;
-  justify-content: center; /* vertically center metadata */
-  gap: 4px;
+  gap: 3px;
+  border-bottom: 1px solid #f0f4f9;
 }
 
 .meta-row {
@@ -186,19 +184,20 @@ function plurals(value: number, unit: string): string {
 }
 
 .label {
-  font-weight: 500;
+  color: #9ca3af;
 }
 
 .value {
   color: #374151;
+  font-weight: 500;
 }
 
-/* actions */
-
 .file-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
   display: flex;
-  justify-content: center;
-  gap: 6px;
+  gap: 4px;
   opacity: 0;
   transition: opacity 0.15s;
 }
@@ -207,26 +206,37 @@ function plurals(value: number, unit: string): string {
   opacity: 1;
 }
 
-/* buttons */
-
-.btn {
-  border: none;
-  background: #f3f4f6;
-
-  padding: 5px 8px;
-  border-radius: 6px;
-
-  font-size: 11px;
+.icon-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border: 1px solid #dde3ed;
+  border-radius: 4px;
   cursor: pointer;
-
-  transition: background 0.15s;
+  padding: 5px;
+  color: #003580;
+  transition: background 0.15s, border-color 0.15s;
 }
 
-.btn:hover {
-  background: #e5e7eb;
+.icon-btn svg {
+  width: 14px;
+  height: 14px;
 }
 
-.btn.danger:hover {
-  background: #fee2e2;
+.icon-btn:hover {
+  background: #f0f4f9;
+  border-color: #003580;
+}
+
+.icon-btn.danger {
+  color: #c0392b;
+}
+
+.icon-btn.danger:hover {
+  background: #fef2f2;
+  border-color: #c0392b;
 }
 </style>

@@ -39,6 +39,7 @@ import BaseButton from '../components/ui/BaseButton.vue'
 import CallToAction from '../components/ui/CallToAction.vue'
 import BaseNotification from '../components/ui/BaseNotification.vue'
 import type { SignupRequest } from '../types/api'
+import router from '@/router'
 
 const showNotification = ref(false)
 const notificationMessage = ref('')
@@ -48,7 +49,7 @@ const username = ref('')
 const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
-const signup_url = "http://localhost:8000/signup"
+const signup_url = `${import.meta.env.VITE_API_BASE}/signup`
 
 async function signup() {
   if (password.value !== confirmPassword.value) {
@@ -78,6 +79,7 @@ async function signup() {
   if (response.ok) {
     notificationMessage.value = message || 'Signup successful!'
     notificationType.value = 'success'
+    router.push("/login")
   } else {
     notificationMessage.value = message || 'Signup failed'
     notificationType.value = 'error'
@@ -88,15 +90,12 @@ async function signup() {
 </script>
 
 <style scoped>
-/* Wrapper centers card vertically and horizontally */
 .SignUp-Page-Wrapper {
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100vh;
-
-  /* Slightly softer gradient to differentiate from login page */
-  background: linear-gradient(135deg, #f0fdfa, #d1fae5);
+  background-color: #f0f4f9;
 }
 
 /* Card */
@@ -110,8 +109,9 @@ async function signup() {
   padding: 32px;
 
   background-color: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0, 53, 128, 0.1);
+  border-top: 3px solid #003580;
   text-align: center;
 }
 
@@ -119,7 +119,8 @@ async function signup() {
 .SignUp-View h2 {
   margin: 0;
   font-size: 20px;
-  color: #111827;
+  color: #003580;
+  font-weight: 600;
 }
 
 /* Input fields */
@@ -129,8 +130,7 @@ async function signup() {
   gap: 14px;
 }
 
-/* Optional: make sign-up button match Vue green */
 .signup-btn {
-  background: linear-gradient(180deg, #42b983, #2c974b);
+  background: #003580;
 }
 </style>
