@@ -4,9 +4,10 @@ use backend::{
     TRACE_LEVEL,
     data_definitions::init_email_sender,
     init_db,
-    routes::{login_request, signup_request},
+    routes::{login_request, me_request, signup_request},
 };
 
+use lettre::transport::smtp::commands::Auth;
 use rocket::{Config, Rocket, get};
 use rocket_cors::{AllowedOrigins, CorsOptions};
 use std::net::{IpAddr, Ipv4Addr};
@@ -79,14 +80,20 @@ async fn main() -> Result<(), rocket::Error> {
 
 async fn build_rocket(server_config: Config) -> Rocket<rocket::Build> {
     let cors: rocket_cors::Cors = CorsOptions::default()
-        .allowed_origins(AllowedOrigins::some_exact(&["http://localhost:5173", "https://localhost"]))
+        .allowed_origins(AllowedOrigins::some_exact(&[
+            "http://localhost:5173",
+            "https://localhost",
+        ]))
         .allow_credentials(true)
         .to_cors()
         .expect("Failed to build CORS");
 
     let mut rocket: Rocket<rocket::Build> = rocket::build()
         .configure(server_config)
-        .mount("/", routes![hi, health, login_request, signup_request])
+        .mount(
+            "/",
+            routes![hi, health, login_request, signup_request, me_request],
+        )
         .attach(cors);
 
     #[cfg(feature = "email")]

@@ -1,4 +1,3 @@
-
 #[cfg(feature = "email")]
 mod email;
 
@@ -13,6 +12,6 @@ mod jwt;
 mod user;
 
 pub use fixed_len_str::FixedSizedStr;
-pub use jwt::JWT;
-pub(crate) use user::UserLoginView;
+pub use jwt::{Auth, JWT};
+pub(crate) use user::{MAX_UTF8_BYTES, UserLoginView};
 pub use user::{StandardUserView, UserLoginRequest, UserSignupRequest};
