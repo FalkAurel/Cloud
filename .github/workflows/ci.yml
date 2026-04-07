@@ -52,6 +52,7 @@ jobs:
         working-directory: backend
         env:
           JWT_SECRET: ci-test-secret
+          MARIADB_HOST: 127.0.0.1
           MARIADB_USER: testuser
           MARIADB_PASSWORD: testpassword
           MARIADB_DATABASE: testdb
