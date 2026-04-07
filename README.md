@@ -44,6 +44,7 @@ cp .env.example .env
 **Dev containers (recommended for development):**
 
 Open the project in VS Code and select **Reopen in Container**. Two separate dev containers are available:
+
 - `.devcontainer/backend/` — Rust toolchain, MariaDB, MinIO
 - `.devcontainer/frontend/` — Node 24, full dev stack
 
@@ -57,7 +58,8 @@ docker compose up
 The application will be available at `https://docker.compose.local` (requires adding the entry to `/etc/hosts`).
 
 Add to `/etc/hosts`:
-```
+
+```text
 127.0.0.1 docker.compose.local
 ```
 
@@ -71,6 +73,7 @@ MARIADB_ROOT_PASSWORD=
 MARIADB_DATABASE=dev
 MARIADB_USER=
 MARIADB_PASSWORD=
+MARIADB_HOST=db
 
 # MinIO
 MINIO_ROOT_USER=
@@ -91,7 +94,7 @@ MAILER_PASSWORD=
 ## API Endpoints
 
 | Method | Path | Description | Auth required |
-| --- | --- | --- |---|
+| --- | --- | --- | --- |
 | `GET` | `/health` | Health check | No |
 | `POST` | `/signup` | Register a new user, sends confirmation email | No |
 | `POST` | `/login` | Authenticate, sets JWT cookie | No |
@@ -163,7 +166,7 @@ cargo run --features "export_binding"
 
 ## Project Structure
 
-```
+```text
 .
 ├── backend/                  # Rust + Rocket API
 │   └── src/
