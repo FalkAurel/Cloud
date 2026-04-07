@@ -1,20 +1,31 @@
 use argon2::PasswordHasher;
+#[cfg(feature = "email")]
 use lettre::Address;
+#[cfg(feature = "email")]
 use lettre::transport::smtp::response::{Response, Severity};
 use rocket::http::Status;
 use rocket::serde::json::Json;
 use rocket::tokio::task::JoinHandle;
 use rocket::{State, post, tokio};
 use sqlx::{Error as SQLError, MySql, Pool, Row};
+#[cfg(feature = "email")]
 use std::env;
+#[cfg(feature = "email")]
 use std::num::NonZero;
+#[cfg(feature = "email")]
 use std::sync::LazyLock;
+#[cfg(feature = "email")]
 use std::time::Duration;
+#[cfg(feature = "email")]
 use tokio::time::sleep;
-use tracing::{error, info, warn};
+use tracing::{error, warn};
+#[cfg(feature = "email")]
+use tracing::info;
 
 use crate::ARGON_2;
-use crate::data_definitions::{Email, EmailError, EmailSender, MAX_UTF8_BYTES, UserSignupRequest};
+use crate::data_definitions::{MAX_UTF8_BYTES, UserSignupRequest};
+#[cfg(feature = "email")]
+use crate::data_definitions::{Email, EmailError, EmailSender};
 
 use argon2::password_hash::{SaltString, rand_core::OsRng};
 
@@ -48,9 +59,12 @@ const RETRY_WAIT_TIME: Duration = Duration::from_secs(30);
 #[cfg(feature = "email")]
 const RETRIES: Option<NonZero<u8>> = NonZero::new(3);
 
+#[cfg(feature = "email")]
 const SIGN_UP_SUBJECT: &str = "Welcome to your own Cloud – You're all set!";
+#[cfg(feature = "email")]
 const SIGN_UP_HTML: &str = include_str!("signup_confirmation.html");
 
+#[cfg(feature = "email")]
 #[post("/signup", format = "json", data = "<signup_request>")]
 pub async fn signup(
     signup_request: Json<UserSignupRequest<'_>>,
@@ -118,21 +132,84 @@ pub async fn signup(
         .await
     {
         Ok(_) => {
-            #[cfg(feature = "email")]
-            {
-                let sender: lettre::AsyncSmtpTransport<lettre::Tokio1Executor> =
-                    email_sender.inner().clone();
-                let pool: Pool<MySql> = db.inner().clone();
-                let raw_email: String = signup_request.email.to_owned();
-                tokio::spawn(handle_signup_email(
-                    sender,
-                    validated_email,
-                    raw_email,
-                    pool,
-                ));
-            }
+            let sender: lettre::AsyncSmtpTransport<lettre::Tokio1Executor> =
+                email_sender.inner().clone();
+            let pool: Pool<MySql> = db.inner().clone();
+            let raw_email: String = signup_request.email.to_owned();
+            tokio::spawn(handle_signup_email(
+                sender,
+                validated_email,
+                raw_email,
+                pool,
+            ));
             Ok(Status::Created)
         }
+        Err(err) => {
+            error!(error = %err, "Signup failed: database error");
+            Err((Status::InternalServerError, "Internal server error"))
+        }
+    }
+}
+
+#[cfg(not(feature = "email"))]
+#[post("/signup", format = "json", data = "<signup_request>")]
+pub async fn signup(
+    signup_request: Json<UserSignupRequest<'_>>,
+    db: &State<Pool<MySql>>,
+) -> Result<Status, (Status, &'static str)> {
+    if !verify_password_length(signup_request.password) {
+        return Err((Status::BadRequest, "Password length is invalid"));
+    }
+
+    if !verify_username_length(signup_request.name) {
+        return Err((Status::BadRequest, "Username length is invalid"));
+    }
+
+    if !verify_email_length(signup_request.email) {
+        return Err((Status::BadRequest, "Email length is invalid"));
+    }
+
+    match email_exists(db, signup_request.email).await {
+        Ok(true) => {
+            warn!(
+                email = signup_request.email,
+                "Signup failed: email already in use"
+            );
+            return Err((Status::Conflict, "Email already in use"));
+        }
+        Err(err) => {
+            error!(error = %err, "Signup failed: could not check email uniqueness");
+            return Err((Status::InternalServerError, "Internal server error"));
+        }
+        _ => (),
+    }
+
+    let salt_string: SaltString = SaltString::generate(&mut OsRng);
+    let password: String = signup_request.password.to_owned();
+    let handle: JoinHandle<Result<String, (Status, &'static str)>> =
+        tokio::task::spawn_blocking(move || {
+            match ARGON_2.hash_password(password.as_bytes(), &salt_string) {
+                Ok(hash) => Ok(hash.to_string()),
+                Err(err) => {
+                    error!(error = %err, "Failed to hash password");
+                    return Err((Status::InternalServerError, "Failed to hash password"));
+                }
+            }
+        });
+
+    let hashed_password: String = handle.await.or_else(|err| {
+        warn!(error = %err, "Hashing Task failed");
+        Err((Status::InternalServerError, "Internal server error"))
+    })??;
+
+    match sqlx::query(INSERT_QUERY_STR)
+        .bind(signup_request.name)
+        .bind(signup_request.email)
+        .bind(&hashed_password)
+        .execute(db.inner())
+        .await
+    {
+        Ok(_) => Ok(Status::Created),
         Err(err) => {
             error!(error = %err, "Signup failed: database error");
             Err((Status::InternalServerError, "Internal server error"))
@@ -254,13 +331,19 @@ mod tests {
     #[cfg(feature = "email")]
     use crate::data_definitions::init_email_sender;
 
-    #[cfg(feature = "email")]
     async fn build_test_client() -> Client {
-        let rocket = rocket::build()
+        let mut rocket = rocket::build()
             .mount("/", rocket::routes![signup])
-            .manage(crate::init_db().await)
-            .manage(init_email_sender().unwrap());
-        Client::tracked(rocket).await.unwrap()
+            .manage(crate::init_db().await);
+
+        #[cfg(feature = "email")]
+        {
+            rocket = rocket.manage(init_email_sender().unwrap());
+            return Client::tracked(rocket).await.unwrap();
+        }
+
+        #[cfg(not(feature = "email"))]
+        return Client::tracked(rocket).await.unwrap()
     }
 
     async fn cleanup(client: &Client, email: &str) {
@@ -272,6 +355,7 @@ mod tests {
             .unwrap();
     }
 
+    #[cfg(feature = "email")]
     #[test]
     fn sender_address_constant_is_valid() {
         let _ = *SENDER_ADDRESS;
@@ -306,8 +390,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "email")]
-    #[ignore = "requires database and SMTP relay"]
+    #[ignore = "requires database"]
     async fn signup_returns_201_for_new_user() {
         let client = build_test_client().await;
         let response = client
@@ -321,8 +404,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "email")]
-    #[ignore = "requires database and SMTP relay"]
+    #[ignore = "requires database"]
     async fn signup_returns_409_for_duplicate_email() {
         let client = build_test_client().await;
         let body =
@@ -345,7 +427,7 @@ mod tests {
 
     #[tokio::test]
     #[cfg(feature = "email")]
-    #[ignore = "requires database and SMTP relay"]
+    #[ignore = "requires database"]
     async fn signup_returns_400_for_invalid_email() {
         let client = build_test_client().await;
         let response = client
@@ -358,8 +440,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "email")]
-    #[ignore = "requires database and SMTP relay"]
+    #[ignore = "requires database"]
     async fn signup_returns_400_for_short_password() {
         let client = build_test_client().await;
         let response = client

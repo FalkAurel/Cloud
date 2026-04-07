@@ -2,10 +2,11 @@
 extern crate rocket;
 use backend::{
     TRACE_LEVEL,
-    data_definitions::init_email_sender,
     init_db,
     routes::{login_request, logout_request, me_request, signup_request},
 };
+#[cfg(feature = "email")]
+use backend::data_definitions::init_email_sender;
 
 use rocket::{Config, Rocket, get};
 use rocket_cors::{AllowedOrigins, CorsOptions};
