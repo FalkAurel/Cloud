@@ -5,7 +5,7 @@ A self-hosted personal cloud storage platform with user authentication, file sto
 ## Stack
 
 | Layer | Technology |
-|---|---|
+| --- | --- |
 | Frontend | Vue 3, TypeScript, Vite, Pinia |
 | Backend | Rust, Rocket 0.5 |
 | Database | MariaDB |
@@ -16,7 +16,7 @@ A self-hosted personal cloud storage platform with user authentication, file sto
 ## Services
 
 | Service | Internal Port | External Port |
-|---|---|---|
+| --- | --- | --- |
 | Frontend | 5173 | 5173 |
 | Backend | 3000 | 8000 |
 | MinIO API | 9000 | 9000 |
@@ -91,10 +91,12 @@ MAILER_PASSWORD=
 ## API Endpoints
 
 | Method | Path | Description | Auth required |
-|---|---|---|---|
+| --- | --- | --- |---|
 | `GET` | `/health` | Health check | No |
 | `POST` | `/signup` | Register a new user, sends confirmation email | No |
-| `POST` | `/login` | Authenticate, returns JWT | No |
+| `POST` | `/login` | Authenticate, sets JWT cookie | No |
+| `POST` | `/logout` | Clear JWT cookie | Yes |
+| `GET` | `/me` | Get current user profile | Yes |
 
 ### POST /signup
 
@@ -119,13 +121,34 @@ Responses: `201 Created`, `400 Bad Request`, `409 Conflict`
 
 Responses: `200 OK` (sets JWT cookie), `401 Unauthorized`
 
+### POST /logout
+
+Requires a valid `jwt` cookie. Clears the cookie on success.
+
+Responses: `200 OK`, `401 Unauthorized`
+
+### GET /me
+
+Requires a valid `jwt` cookie. Returns the authenticated user's profile.
+
+```json
+{
+  "name": "Alice",
+  "email": "alice@example.com",
+  "is_admin": false
+}
+```
+
+Responses: `200 OK`, `401 Unauthorized`
+
 ## Frontend Routes
 
 | Path | Page |
-|---|---|
+| --- | --- |
 | `/login` | Login form |
 | `/signup` | Registration form |
 | `/home` | File browser (authenticated) |
+| `/profile` | User dashboard — storage stats, account info, quick actions |
 
 ## TypeScript Type Bindings
 
@@ -149,15 +172,26 @@ cargo run --features "export_binding"
 │       └── data_definitions/ # models, JWT, email
 ├── frontend/
 │   └── vue-project/src/
-│       ├── views/            # LoginPage, SignUp, HomePage
-│       ├── components/ui/    # reusable components
+│       ├── views/            # LoginPage, SignUp, HomePage, Profile
+│       ├── components/ui/    # BaseBadge, BaseSpinner, BaseNotification,
+│       │                     # NotAuthorized, UploadButton, BaseFileDescriptor
 │       ├── stores/           # Pinia auth store
 │       ├── router/           # Vue Router
 │       └── types/
 │           └── bindings/     # auto-generated from Rust
 ├── reverse_proxy/            # Nginx config + SSL
 ├── infra/                    # docker-compose.yml
+├── .github/workflows/        # CI pipeline (backend + frontend tests)
 └── .devcontainer/            # VS Code dev container configs
     ├── backend/
     └── frontend/
 ```
+
+## CI
+
+GitHub Actions runs on every push and pull request to `main`.
+
+| Job | What it does |
+| --- | --- |
+| **Backend** | Spins up a MariaDB service container, applies the schema, and runs all tests including integration tests (email feature disabled) |
+| **Frontend** | TypeScript type check + Vitest unit tests |
