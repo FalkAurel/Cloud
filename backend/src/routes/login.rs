@@ -117,26 +117,11 @@ async fn get_user_view(db: &Pool<MySql>, email: &str) -> Result<Option<UserLogin
 mod tests {
     use rocket::http::{ContentType, Status as HttpStatus};
     use rocket::local::asynchronous::Client;
+    use rocket::routes;
     use sqlx::{MySql, Pool};
 
-    use super::*;
-    #[cfg(feature = "email")]
-    use crate::data_definitions::init_email_sender;
-
-    async fn build_test_client() -> Client {
-        let mut rocket = rocket::build()
-            .mount("/", rocket::routes![login, super::super::signup::signup])
-            .manage(crate::init_db().await);
-
-        #[cfg(feature = "email")]
-        {
-            rocket = rocket.manage(init_email_sender().unwrap());
-            return Client::tracked(rocket).await.unwrap();
-        }
-
-        #[cfg(not(feature = "email"))]
-        return Client::tracked(rocket).await.unwrap()
-    }
+    use crate::routes::{login_request, signup_request};
+    use crate::test_harness_setup::build_test_client;
 
     async fn cleanup(client: &Client, email: &str) {
         let db = client.rocket().state::<Pool<MySql>>().unwrap();
@@ -150,9 +135,9 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn login_returns_200_after_signup() {
-        let client = build_test_client().await;
-        let email = "logintest@example.com";
-        let password = "password123";
+        let client: Client = build_test_client(&routes![signup_request, login_request]).await;
+        let email: &str = "logintest@example.com";
+        let password: &str = "password123";
 
         client
             .post("/signup")
@@ -181,7 +166,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn login_returns_401_for_wrong_password() {
-        let client = build_test_client().await;
+        let client = build_test_client(&routes![signup_request, login_request]).await;
         let email = "wrongpass@example.com";
 
         client
@@ -211,7 +196,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn login_returns_401_for_unknown_email() {
-        let client: Client = build_test_client().await;
+        let client: Client = build_test_client(&routes![login_request]).await;
 
         let response = client
             .post("/login")

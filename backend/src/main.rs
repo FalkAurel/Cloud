@@ -1,12 +1,11 @@
 #[macro_use]
 extern crate rocket;
-use backend::{
-    TRACE_LEVEL,
-    init_db,
-    routes::{login_request, logout_request, me_request, signup_request},
-};
 #[cfg(feature = "email")]
 use backend::data_definitions::init_email_sender;
+use backend::{
+    TRACE_LEVEL, init_db,
+    routes::{login_request, logout_request, me_request, signup_request},
+};
 
 use rocket::{Config, Rocket, get};
 use rocket_cors::{AllowedOrigins, CorsOptions};
@@ -92,7 +91,14 @@ async fn build_rocket(server_config: Config) -> Rocket<rocket::Build> {
         .configure(server_config)
         .mount(
             "/",
-            routes![hi, health, login_request, logout_request, signup_request, me_request],
+            routes![
+                hi,
+                health,
+                login_request,
+                logout_request,
+                signup_request,
+                me_request
+            ],
         )
         .attach(cors);
 

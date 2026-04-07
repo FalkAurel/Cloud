@@ -41,3 +41,32 @@ pub async fn init_db() -> Pool<MySql> {
 
     connection_pool
 }
+
+#[cfg(test)]
+mod test_harness_setup {
+    use rocket::{Route, local::asynchronous::Client};
+
+    pub(crate) async fn build_test_client(routes: &[Route]) -> Client {
+        #[cfg(feature = "email")]
+        {
+            use rocket::Rocket;
+
+            use crate::{data_definitions::init_email_sender, init_db};
+
+            let rocket = Rocket::build()
+                .mount("/", routes)
+                .manage(init_db().await)
+                .manage(init_email_sender().unwrap());
+            Client::tracked(rocket).await.unwrap()
+        }
+
+        #[cfg(not(feature = "email"))]
+        {
+            use crate::init_db;
+            use rocket::Rocket;
+
+            let rocket = Rocket::build().mount("/", routes).manage(init_db().await);
+            Client::tracked(rocket).await.unwrap()
+        }
+    }
+}

@@ -99,7 +99,9 @@ impl<'a> FromRequest<'a> for Auth {
         let cookie: &Cookie<'_> = match request.cookies().get("jwt") {
             Some(cookie) => cookie,
             None => {
-                return Box::pin(async { Outcome::Error((Status::Unauthorized, AuthError::NoJWT)) });
+                return Box::pin(async {
+                    Outcome::Error((Status::Unauthorized, AuthError::NoJWT))
+                });
             }
         };
 

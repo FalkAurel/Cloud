@@ -57,34 +57,16 @@ pub async fn me(
 mod tests {
     use rocket::http::{ContentType, Cookie, Status as HttpStatus};
     use rocket::local::asynchronous::Client;
+    use rocket::routes;
     use rocket::serde::json;
     use sqlx::{MySql, Pool};
 
     use crate::TOKEN_LIFETIME;
     use crate::data_definitions::JWT;
-
-    #[cfg(feature = "email")]
-    use crate::data_definitions::init_email_sender;
+    use crate::routes::signup_request;
+    use crate::test_harness_setup::build_test_client;
 
     use super::*;
-
-    async fn build_test_client() -> Client {
-        let mut rocket = rocket::build()
-            .mount(
-                "/",
-                rocket::routes![me, super::super::signup::signup, super::super::login::login],
-            )
-            .manage(crate::init_db().await);
-
-        #[cfg(feature = "email")]
-        {
-            rocket = rocket.manage(init_email_sender().unwrap());
-            return Client::tracked(rocket).await.unwrap();
-        }
-
-        #[cfg(not(feature = "email"))]
-        return Client::tracked(rocket).await.unwrap()
-    }
 
     async fn cleanup(client: &Client, email: &str) {
         let db = client.rocket().state::<Pool<MySql>>().unwrap();
@@ -108,9 +90,9 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn me_returns_200_with_valid_jwt() {
-        let client = build_test_client().await;
-        let email = "metest@example.com";
-        let password = "password123";
+        let client: Client = build_test_client(&routes![signup_request, me]).await;
+        let email: &str = "metest@example.com";
+        let password: &str = "password123";
 
         client
             .post("/signup")
@@ -122,8 +104,8 @@ mod tests {
             .dispatch()
             .await;
 
-        let user_id = get_user_id(&client, email).await;
-        let token = JWT::create(user_id as u32, TOKEN_LIFETIME).unwrap();
+        let user_id: i32 = get_user_id(&client, email).await;
+        let token: String = JWT::create(user_id as u32, TOKEN_LIFETIME).unwrap();
 
         let response = client
             .get("/me")
@@ -144,9 +126,10 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn me_returns_401_without_jwt() {
-        let client = build_test_client().await;
+        let client: Client = build_test_client(&routes![me]).await;
 
-        let response = client.get("/me").dispatch().await;
+        let response: rocket::local::asynchronous::LocalResponse<'_> =
+            client.get("/me").dispatch().await;
 
         assert_eq!(response.status(), HttpStatus::Unauthorized);
     }
@@ -154,7 +137,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn me_returns_400_with_invalid_jwt() {
-        let client = build_test_client().await;
+        let client: Client = build_test_client(&routes![me]).await;
 
         let response = client
             .get("/me")
@@ -168,7 +151,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn me_returns_401_for_nonexistent_user() {
-        let client = build_test_client().await;
+        let client = build_test_client(&routes![me]).await;
         // Use a user_id that does not exist in the database
         let token = JWT::create(u32::MAX, TOKEN_LIFETIME).unwrap();
 
