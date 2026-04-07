@@ -120,14 +120,22 @@ mod tests {
     use sqlx::{MySql, Pool};
 
     use super::*;
+    #[cfg(feature = "email")]
     use crate::data_definitions::init_email_sender;
 
     async fn build_test_client() -> Client {
-        let rocket = rocket::build()
+        let mut rocket = rocket::build()
             .mount("/", rocket::routes![login, super::super::signup::signup])
-            .manage(crate::init_db().await)
-            .manage(init_email_sender().unwrap());
-        Client::tracked(rocket).await.unwrap()
+            .manage(crate::init_db().await);
+
+        #[cfg(feature = "email")]
+        {
+            rocket = rocket.manage(init_email_sender().unwrap());
+            return Client::tracked(rocket).await.unwrap();
+        }
+
+        #[cfg(not(feature = "email"))]
+        return Client::tracked(rocket).await.unwrap()
     }
 
     async fn cleanup(client: &Client, email: &str) {
@@ -140,7 +148,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires database and SMTP relay"]
+    #[ignore = "requires database"]
     async fn login_returns_200_after_signup() {
         let client = build_test_client().await;
         let email = "logintest@example.com";
@@ -171,7 +179,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires database and SMTP relay"]
+    #[ignore = "requires database"]
     async fn login_returns_401_for_wrong_password() {
         let client = build_test_client().await;
         let email = "wrongpass@example.com";
@@ -201,7 +209,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires database and SMTP relay"]
+    #[ignore = "requires database"]
     async fn login_returns_401_for_unknown_email() {
         let client: Client = build_test_client().await;
 
