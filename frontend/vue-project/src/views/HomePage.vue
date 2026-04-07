@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import SideBar from '@/components/nav/SideBar.vue'
 import BaseFileDescriptor from '@/components/ui/BaseFileDescriptor.vue'
+import UploadButton from '@/components/ui/UploadButton.vue'
+
+function onUpload(file: File) {
+  // TODO: send file to backend
+  console.log('uploading', file.name)
+}
 </script>
 
 <template>
@@ -20,6 +26,7 @@ import BaseFileDescriptor from '@/components/ui/BaseFileDescriptor.vue'
         />
       </div>
     </div>
+    <UploadButton @upload="onUpload" />
   </div>
 </template>
 

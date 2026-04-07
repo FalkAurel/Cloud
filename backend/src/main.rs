@@ -4,7 +4,7 @@ use backend::{
     TRACE_LEVEL,
     data_definitions::init_email_sender,
     init_db,
-    routes::{login_request, me_request, signup_request},
+    routes::{login_request, logout_request, me_request, signup_request},
 };
 
 use rocket::{Config, Rocket, get};
@@ -91,7 +91,7 @@ async fn build_rocket(server_config: Config) -> Rocket<rocket::Build> {
         .configure(server_config)
         .mount(
             "/",
-            routes![hi, health, login_request, signup_request, me_request],
+            routes![hi, health, login_request, logout_request, signup_request, me_request],
         )
         .attach(cors);
 
