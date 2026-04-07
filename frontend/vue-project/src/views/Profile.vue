@@ -19,15 +19,11 @@
       </header>
 
       <div v-if="loading" class="loading-state">
-        <div class="spinner" />
+        <BaseSpinner />
         <span>Profil wird geladen…</span>
       </div>
 
-      <div v-else-if="error" class="error-state">
-        <span class="error-icon">!</span>
-        <span>{{ error }}</span>
-        <button class="retry-btn" @click="fetchProfile">Erneut versuchen</button>
-      </div>
+      <NotAuthorized v-else-if="error" :message="error" @retry="fetchProfile" />
 
       <div v-else class="dashboard">
 
@@ -38,9 +34,9 @@
             <div class="profile-info">
               <h2 class="profile-name">{{ profile.name }}</h2>
               <p class="profile-email">{{ profile.email }}</p>
-              <span class="badge" :class="profile.is_admin ? 'badge-admin' : 'badge-user'">
+              <BaseBadge :variant="profile.is_admin ? 'admin' : 'user'">
                 {{ profile.is_admin ? 'Administrator' : 'Benutzer' }}
-              </span>
+              </BaseBadge>
             </div>
           </div>
 
@@ -162,10 +158,15 @@ import { useRouter } from 'vue-router'
 import SideBar from '@/components/nav/SideBar.vue'
 import CircularGauge from '@/components/ui/CircularGauge.vue'
 import BaseNotification from '@/components/ui/BaseNotification.vue'
+import BaseBadge from '@/components/ui/BaseBadge.vue'
+import BaseSpinner from '@/components/ui/BaseSpinner.vue'
+import NotAuthorized from '@/components/ui/NotAuthorized.vue'
 import { returnBytesFormated } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
 import type { StandardUserView } from '@/types/api'
 import { timeOfDay } from '@/utils/timeOfDay'
+
+defineOptions({ name: 'UserProfile' })
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -179,12 +180,15 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const showError = ref(false)
 
+const meEndpoint: string = `${import.meta.env.VITE_API_BASE}/me`;
+const logOutEndpoint: string = `${import.meta.env.VITE_API_BASE}/logout`;
+
 async function fetchProfile() {
   loading.value = true
   error.value = null
   showError.value = false
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_BASE}/me`, {
+    const res = await fetch(meEndpoint, {
       method: 'GET',
       credentials: 'include',
     })
@@ -228,15 +232,6 @@ const initials = computed(() =>
     .slice(0, 2) || '?'
 )
 
-
-
-const greeting = computed(() => {
-  const h = new Date().getHours()
-  if (h < 12) return 'Guten Morgen'
-  if (h < 18) return 'Guten Tag'
-  return 'Guten Abend'
-})
-
 const memberSince = new Date(2024, 0, 1).toLocaleDateString('de-DE', {
   day: '2-digit',
   month: 'long',
@@ -257,6 +252,13 @@ function navigate(route: string) {
 
 function logout() {
   authStore.logout()
+  fetch(
+    logOutEndpoint,
+    {
+      method: 'POST',
+      credentials: 'include',
+    }
+  )
   router.push('/login')
 }
 </script>
@@ -330,8 +332,7 @@ function logout() {
 }
 
 /* ── Loading / Error ────────────────────────────────────────── */
-.loading-state,
-.error-state {
+.loading-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -341,44 +342,6 @@ function logout() {
   color: #6b7a90;
   font-size: 14px;
 }
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid #e6ecf5;
-  border-top-color: #003580;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.error-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: #fef2f2;
-  border: 2px solid #c0392b;
-  color: #c0392b;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 18px;
-}
-
-.retry-btn {
-  padding: 6px 16px;
-  font-size: 13px;
-  background: #003580;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.retry-btn:hover { background: #0050b3; }
 
 /* ── Dashboard grid ─────────────────────────────────────────── */
 .dashboard {
@@ -415,7 +378,7 @@ function logout() {
 }
 
 /* ── Profile card ───────────────────────────────────────────── */
-.profile-card {
+.profile-card{
   display: flex;
   align-items: center;
   gap: 16px;
@@ -455,27 +418,6 @@ function logout() {
   font-size: 13px;
   color: #6b7a90;
   margin: 0;
-}
-
-.badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  width: fit-content;
-}
-
-.badge-user {
-  background: #e8effa;
-  color: #003580;
-}
-
-.badge-admin {
-  background: #fff3cd;
-  color: #856404;
 }
 
 /* ── Stat cards ─────────────────────────────────────────────── */
