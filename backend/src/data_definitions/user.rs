@@ -5,17 +5,17 @@ use ts_rs::TS;
 use crate::data_definitions::FixedSizedStr;
 
 const DB_STRING_LENGTH: usize = 40;
-const MAX_UTF8_BYTES: usize = DB_STRING_LENGTH * size_of::<char>();
+pub(crate) const MAX_UTF8_BYTES: usize = DB_STRING_LENGTH * size_of::<char>();
 
 #[cfg_attr(feature = "export_binding", derive(TS))]
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct StandardUserView {
     #[cfg_attr(feature = "export_binding", ts(type = "string"))]
-    name: FixedSizedStr<MAX_UTF8_BYTES>,
+    pub(crate) name: FixedSizedStr<MAX_UTF8_BYTES>,
     #[cfg_attr(feature = "export_binding", ts(type = "string"))]
-    email: FixedSizedStr<MAX_UTF8_BYTES>,
-    is_admin: bool,
+    pub(crate) email: FixedSizedStr<MAX_UTF8_BYTES>,
+    pub(crate) is_admin: bool,
 }
 
 impl StandardUserView {

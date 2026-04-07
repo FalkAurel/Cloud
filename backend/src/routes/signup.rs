@@ -14,12 +14,12 @@ use tokio::time::sleep;
 use tracing::{error, info, warn};
 
 use crate::ARGON_2;
-use crate::data_definitions::{Email, EmailError, EmailSender, UserSignupRequest};
+use crate::data_definitions::{Email, EmailError, EmailSender, MAX_UTF8_BYTES, UserSignupRequest};
 
 use argon2::password_hash::{SaltString, rand_core::OsRng};
 
 const MIN_PASSWORD_LENGTH: u8 = 8;
-const MAX_PASSWORD_LENGTH: u8 = 255;
+const MAX_PASSWORD_LENGTH: u8 = MAX_UTF8_BYTES as u8;
 
 #[cfg(feature = "email")]
 const DELETE_USER_QUERY_STR: &str = r#"
@@ -57,8 +57,16 @@ pub async fn signup(
     db: &State<Pool<MySql>>,
     email_sender: &State<EmailSender>,
 ) -> Result<Status, (Status, &'static str)> {
-    if !verify_password(signup_request.password) {
+    if !verify_password_length(signup_request.password) {
         return Err((Status::BadRequest, "Password length is invalid"));
+    }
+
+    if !verify_username_length(signup_request.name) {
+        return Err((Status::BadRequest, "Username length is invalid"));
+    }
+
+    if !verify_email_length(signup_request.email) {
+        return Err((Status::BadRequest, "Email length is invalid"));
     }
 
     let validated_email: Address = match signup_request.email.parse() {
@@ -112,10 +120,16 @@ pub async fn signup(
         Ok(_) => {
             #[cfg(feature = "email")]
             {
-                let sender = email_sender.inner().clone();
-                let pool = db.inner().clone();
-                let raw_email = signup_request.email.to_owned();
-                tokio::spawn(handle_signup_email(sender, validated_email, raw_email, pool));
+                let sender: lettre::AsyncSmtpTransport<lettre::Tokio1Executor> =
+                    email_sender.inner().clone();
+                let pool: Pool<MySql> = db.inner().clone();
+                let raw_email: String = signup_request.email.to_owned();
+                tokio::spawn(handle_signup_email(
+                    sender,
+                    validated_email,
+                    raw_email,
+                    pool,
+                ));
             }
             Ok(Status::Created)
         }
@@ -126,8 +140,16 @@ pub async fn signup(
     }
 }
 
-fn verify_password(password: &str) -> bool {
+fn verify_password_length(password: &str) -> bool {
     MIN_PASSWORD_LENGTH as usize <= password.len() && password.len() <= MAX_PASSWORD_LENGTH as usize
+}
+
+fn verify_username_length(name: &str) -> bool {
+    0 < name.len() && name.len() <= MAX_UTF8_BYTES
+}
+
+fn verify_email_length(email: &str) -> bool {
+    0 < email.len() && email.len() <= MAX_UTF8_BYTES
 }
 
 #[cfg(feature = "email")]
@@ -183,9 +205,12 @@ async fn send_email(
         match email.clone().send(email_sender).await {
             Ok(response) => match response.code().severity {
                 Severity::TransientNegativeCompletion => {
-                    let error = response.message().next().unwrap_or("Unknown Error");
+                    let error: &str = response.message().next().unwrap_or("Unknown Error");
                     if attempt < attempts - 1 {
-                        warn!(remaining = attempts - attempt - 1, error, "Transient failure, retrying...");
+                        warn!(
+                            remaining = attempts - attempt - 1,
+                            error, "Transient failure, retrying..."
+                        );
                         sleep(RETRY_WAIT_TIME).await;
                         continue;
                     }
@@ -249,29 +274,33 @@ mod tests {
 
     #[test]
     fn sender_address_constant_is_valid() {
-        let _ = SENDER_ADDRESS.clone();
+        let _ = *SENDER_ADDRESS;
     }
 
     #[test]
     fn password_below_min_rejected() {
-        assert!(!verify_password(
+        assert!(!verify_password_length(
             &"a".repeat(MIN_PASSWORD_LENGTH as usize - 1)
         ));
     }
 
     #[test]
     fn password_at_min_accepted() {
-        assert!(verify_password(&"a".repeat(MIN_PASSWORD_LENGTH as usize)));
+        assert!(verify_password_length(
+            &"a".repeat(MIN_PASSWORD_LENGTH as usize)
+        ));
     }
 
     #[test]
     fn password_at_max_accepted() {
-        assert!(verify_password(&"a".repeat(MAX_PASSWORD_LENGTH as usize)));
+        assert!(verify_password_length(
+            &"a".repeat(MAX_PASSWORD_LENGTH as usize)
+        ));
     }
 
     #[test]
     fn password_above_max_rejected() {
-        assert!(!verify_password(
+        assert!(!verify_password_length(
             &"a".repeat(MAX_PASSWORD_LENGTH as usize + 1)
         ));
     }

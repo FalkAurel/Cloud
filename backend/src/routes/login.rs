@@ -68,7 +68,7 @@ pub async fn login(
 
         match join_handle.await {
             Ok(Some(token)) => {
-                let cookie: Cookie = Cookie::build(("token", token))
+                let cookie: Cookie = Cookie::build(("jwt", token))
                     .http_only(true)
                     .secure(true)
                     .same_site(SameSite::Lax)
