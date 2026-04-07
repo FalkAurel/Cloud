@@ -1,5 +1,7 @@
 # Cloud
 
+[![CI](https://github.com/FalkAurel/Cloud/actions/workflows/ci.yml/badge.svg)](https://github.com/FalkAurel/Cloud/actions/workflows/ci.yml)
+
 A self-hosted personal cloud storage platform with user authentication, file storage, and email notifications.
 
 ## Stack
