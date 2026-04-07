@@ -45,6 +45,9 @@ import DownloadIcon from '@/assets/icons/download.svg?component'
 import ShareIcon from '@/assets/icons/share.svg?component'
 // @ts-ignore
 import TrashIcon from '@/assets/icons/trash.svg?component'
+import { returnBytesFormated } from '@/utils/format'
+
+
 interface FileProps {
   fileName: string
   fileSize: number // in Bytes
@@ -73,16 +76,6 @@ function returnIcon(fileName: string): string {
     default:
       return '📁'
   }
-}
-
-function returnBytesFormated(bytes: number): string {
-  const units = ['Bytes', 'KB', 'MB', 'GB', 'TB']
-  let i = 0
-  while (bytes >= 1024 && i < units.length - 1) {
-    bytes /= 1024
-    i++
-  }
-  return `${bytes.toFixed(1)} ${units[i]}`
 }
 
 function returnDateFormated(date: number): string {
