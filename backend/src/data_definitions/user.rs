@@ -11,6 +11,7 @@ pub(crate) const MAX_UTF8_BYTES: usize = DB_STRING_LENGTH * size_of::<char>();
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct StandardUserView {
+    pub(crate) id: i32,
     #[cfg_attr(feature = "export_binding", ts(type = "string"))]
     pub(crate) name: FixedSizedStr<MAX_UTF8_BYTES>,
     #[cfg_attr(feature = "export_binding", ts(type = "string"))]
@@ -29,6 +30,28 @@ impl StandardUserView {
 
     pub fn is_admin(&self) -> bool {
         self.is_admin
+    }
+}
+
+pub(crate) struct UserCreationView<'a> {
+    name: &'a FixedSizedStr<MAX_UTF8_BYTES>,
+    email: &'a FixedSizedStr<MAX_UTF8_BYTES>,
+}
+
+impl<'a> UserCreationView<'a> {
+    pub fn new(
+        name: &'a FixedSizedStr<MAX_UTF8_BYTES>,
+        email: &'a FixedSizedStr<MAX_UTF8_BYTES>,
+    ) -> Self {
+        Self { name, email }
+    }
+
+    pub fn get_name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    pub fn get_email(&self) -> &str {
+        self.email.as_str()
     }
 }
 
@@ -67,12 +90,14 @@ mod user {
     #[test]
     fn serialize_user() {
         let user: StandardUserView = StandardUserView {
+            id: 0,
             name: FixedSizedStr::new_from_str(TEST_NAME).unwrap(),
             email: FixedSizedStr::new_from_str(TEST_EMAIL).unwrap(),
             is_admin: false,
         };
 
-        let expected_json: &str = r#"{"name":"test","email":"test@gmail.com","is_admin":false}"#;
+        let expected_json: &str =
+            r#"{"id":0,"name":"test","email":"test@gmail.com","is_admin":false}"#;
         assert_eq!(expected_json, json::to_string(&user).unwrap())
     }
 
@@ -80,6 +105,7 @@ mod user {
     fn deserialize_user() {
         let json_user: &str = r#"
         {
+            "id": 0,
             "name": "test",
             "email": "test@gmail.com",
             "is_admin": false
@@ -101,6 +127,7 @@ mod user {
         assert_eq!(long_name.as_bytes().len(), MAX_UTF8_BYTES);
 
         let user: StandardUserView = StandardUserView {
+            id: 0,
             name: FixedSizedStr::new_from_str(&long_name).unwrap(),
             email: FixedSizedStr::new_from_str(TEST_EMAIL).unwrap(),
             is_admin: false,

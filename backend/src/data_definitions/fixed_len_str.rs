@@ -1,3 +1,5 @@
+use std::fmt;
+
 use serde::{Deserialize, Serialize, de::Visitor, ser::Error};
 
 pub struct FixedSizedStr<const BYTES: usize> {
@@ -8,10 +10,16 @@ pub struct FixedSizedStr<const BYTES: usize> {
 struct FixedStrVisitor<const BYTES: usize>;
 
 #[derive(Debug)]
-pub(crate) struct TooLong;
+pub(crate) struct TooLong<const MAX_LENGTH: usize>;
+
+impl <const MAX_LENGTH: usize> fmt::Display for TooLong<MAX_LENGTH> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "The string must not exceed {MAX_LENGTH} bytes")
+    }
+}
 
 impl<const BYTES: usize> FixedSizedStr<BYTES> {
-    pub(crate) fn new_from_str(value: &str) -> Result<Self, TooLong> {
+    pub(crate) fn new_from_str(value: &str) -> Result<Self, TooLong<BYTES>> {
         if value.len() > BYTES {
             return Err(TooLong);
         }

@@ -1,12 +1,17 @@
-use std::{env, sync::LazyLock, time::Duration};
+use std::{sync::LazyLock, time::Duration};
 
 use argon2::Argon2;
-use sqlx::{MySql, Pool, mysql::MySqlConnectOptions};
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
-pub mod data_definitions;
+pub(crate) mod data_definitions;
+pub(crate) mod database;
 pub mod routes;
+
+pub use database::init_db;
+
+#[cfg(feature = "email")]
+pub use data_definitions::init_email_sender;
 
 #[cfg(debug_assertions)]
 mod http_span;
@@ -25,19 +30,31 @@ pub static TRACE_LEVEL: LazyLock<Level> = LazyLock::new(|| {
     log_level
 });
 
-pub async fn init_db() -> Pool<MySql> {
-    let user: String = env::var("MARIADB_USER").expect("Provide a USER");
-    let password: String = env::var("MARIADB_PASSWORD").expect("Provide a Password");
-    let database: String = env::var("MARIADB_DATABASE").expect("Provide a database");
-    let host: String = env::var("MARIADB_HOST").unwrap_or_else(|_| "db".to_string());
+#[cfg(test)]
+mod test_harness_setup {
+    use rocket::{Route, local::asynchronous::Client};
 
-    let connection_pool: Pool<MySql> = Pool::connect_lazy_with(
-        MySqlConnectOptions::new()
-            .host(&host)
-            .username(&user)
-            .password(&password)
-            .database(&database),
-    );
+    pub(crate) async fn build_test_client(routes: &[Route]) -> Client {
+        #[cfg(feature = "email")]
+        {
+            use rocket::Rocket;
 
-    connection_pool
+            use crate::{data_definitions::init_email_sender, init_db};
+
+            let rocket = Rocket::build()
+                .mount("/", routes)
+                .manage(init_db().await)
+                .manage(init_email_sender().unwrap());
+            Client::tracked(rocket).await.unwrap()
+        }
+
+        #[cfg(not(feature = "email"))]
+        {
+            use crate::init_db;
+            use rocket::Rocket;
+
+            let rocket = Rocket::build().mount("/", routes).manage(init_db().await);
+            Client::tracked(rocket).await.unwrap()
+        }
+    }
 }

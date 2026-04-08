@@ -1,51 +1,30 @@
 use rocket::{State, get, http::Status, serde::json::Json};
-use sqlx::{Error, MySql, Pool, Row};
+use sqlx::{MySql, Pool};
 use tracing::{error, info, warn};
 
-use crate::data_definitions::{Auth, FixedSizedStr, StandardUserView};
-
-const GET_USER_INFO: &str = r#"
-SELECT name, email, is_admin FROM users WHERE id = ? LIMIT 1;
-"#;
+use crate::{
+    data_definitions::{Auth, StandardUserView},
+    database::{ReadOnly, user_repository::UserRepository},
+};
 
 #[get("/me")]
 pub async fn me(
     jwt: Auth,
-    db_connection: &State<Pool<MySql>>,
+    db: &State<Pool<MySql>>,
 ) -> Result<(Status, Json<StandardUserView>), (Status, &'static str)> {
     let user_id: u32 = jwt.0.user_id;
 
     info!(user_id = user_id, "Fetching current user profile");
 
-    match sqlx::query(GET_USER_INFO)
-        .bind(user_id as i32)
-        .fetch_one(db_connection.inner())
-        .await
-    {
-        Ok(row) => {
-            let name: FixedSizedStr<160> = FixedSizedStr::new_from_str(row.get::<&str, usize>(0))
-                .expect("DB contains invalid name that passed signup validation");
-            let email: FixedSizedStr<160> = FixedSizedStr::new_from_str(row.get::<&str, usize>(1))
-                .expect("DB contains invalid email that passed signup validation");
-            let is_admin: bool = row.get(2);
-
+    match UserRepository::get_user_info(user_id).read(db).await {
+        Ok(Some(user)) => {
             info!(user_id = user_id, "User profile fetched successfully");
-
-            Ok((
-                Status::Ok,
-                Json(StandardUserView {
-                    name,
-                    email,
-                    is_admin,
-                }),
-            ))
+            Ok((Status::Ok, Json(user)))
         }
-
-        Err(Error::RowNotFound) => {
+        Ok(None) => {
             warn!(user_id = user_id, "User ID from JWT not found in database");
             Err((Status::Unauthorized, "User not found"))
         }
-
         Err(e) => {
             error!(user_id = user_id, error = %e, "Database error while fetching user");
             Err((Status::InternalServerError, "Internal server error"))
@@ -57,60 +36,42 @@ pub async fn me(
 mod tests {
     use rocket::http::{ContentType, Cookie, Status as HttpStatus};
     use rocket::local::asynchronous::Client;
+    use rocket::routes;
     use rocket::serde::json;
-    use sqlx::{MySql, Pool};
+    use sqlx::{MySql, Pool, Transaction};
 
     use crate::TOKEN_LIFETIME;
     use crate::data_definitions::JWT;
-
-    #[cfg(feature = "email")]
-    use crate::data_definitions::init_email_sender;
+    use crate::database::Transactional;
+    use crate::routes::signup_request;
+    use crate::test_harness_setup::build_test_client;
 
     use super::*;
 
-    async fn build_test_client() -> Client {
-        let mut rocket = rocket::build()
-            .mount(
-                "/",
-                rocket::routes![me, super::super::signup::signup, super::super::login::login],
-            )
-            .manage(crate::init_db().await);
-
-        #[cfg(feature = "email")]
-        {
-            rocket = rocket.manage(init_email_sender().unwrap());
-            return Client::tracked(rocket).await.unwrap();
-        }
-
-        #[cfg(not(feature = "email"))]
-        return Client::tracked(rocket).await.unwrap()
-    }
-
     async fn cleanup(client: &Client, email: &str) {
         let db = client.rocket().state::<Pool<MySql>>().unwrap();
-        sqlx::query("DELETE FROM users WHERE email = ?")
-            .bind(email)
-            .execute(db)
-            .await
-            .unwrap();
+        let mut transaction: Transaction<MySql> = db.begin().await.unwrap();
+        let delete_user = UserRepository::delete(email);
+        delete_user.execute(&mut transaction).await.unwrap();
+        delete_user.commit(transaction).await.unwrap();
     }
 
     async fn get_user_id(client: &Client, email: &str) -> i32 {
         let db = client.rocket().state::<Pool<MySql>>().unwrap();
-        sqlx::query("SELECT id FROM users WHERE email = ? LIMIT 1")
-            .bind(email)
-            .fetch_one(db)
+        UserRepository::get_login_view(email)
+            .read(db)
             .await
             .unwrap()
-            .get::<i32, usize>(0)
+            .unwrap()
+            .id
     }
 
     #[tokio::test]
     #[ignore = "requires database"]
     async fn me_returns_200_with_valid_jwt() {
-        let client = build_test_client().await;
-        let email = "metest@example.com";
-        let password = "password123";
+        let client: Client = build_test_client(&routes![signup_request, me]).await;
+        let email: &str = "metest@example.com";
+        let password: &str = "password123";
 
         client
             .post("/signup")
@@ -122,8 +83,8 @@ mod tests {
             .dispatch()
             .await;
 
-        let user_id = get_user_id(&client, email).await;
-        let token = JWT::create(user_id as u32, TOKEN_LIFETIME).unwrap();
+        let user_id: i32 = get_user_id(&client, email).await;
+        let token: String = JWT::create(user_id as u32, TOKEN_LIFETIME).unwrap();
 
         let response = client
             .get("/me")
@@ -144,9 +105,10 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn me_returns_401_without_jwt() {
-        let client = build_test_client().await;
+        let client: Client = build_test_client(&routes![me]).await;
 
-        let response = client.get("/me").dispatch().await;
+        let response: rocket::local::asynchronous::LocalResponse<'_> =
+            client.get("/me").dispatch().await;
 
         assert_eq!(response.status(), HttpStatus::Unauthorized);
     }
@@ -154,7 +116,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn me_returns_400_with_invalid_jwt() {
-        let client = build_test_client().await;
+        let client: Client = build_test_client(&routes![me]).await;
 
         let response = client
             .get("/me")
@@ -168,7 +130,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn me_returns_401_for_nonexistent_user() {
-        let client = build_test_client().await;
+        let client = build_test_client(&routes![me]).await;
         // Use a user_id that does not exist in the database
         let token = JWT::create(u32::MAX, TOKEN_LIFETIME).unwrap();
 
