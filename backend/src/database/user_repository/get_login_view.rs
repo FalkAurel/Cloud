@@ -35,26 +35,30 @@ impl ReadOnly for GetLoginView<'_> {
 mod tests {
     use sqlx::{MySql, Pool};
 
-    use crate::{database::ReadOnly, init_db};
+    use crate::{
+        data_definitions::{FixedSizedStr, MAX_UTF8_BYTES, UserCreationView},
+        database::{ReadOnly, Transactional, user_repository::UserRepository},
+        init_db,
+    };
 
     use super::GetLoginView;
 
     async fn setup(pool: &Pool<MySql>, email: &str) {
-        sqlx::query("INSERT INTO users (name, email, password) VALUES (?, ?, ?)")
-            .bind("test")
-            .bind(email)
-            .bind("test_password")
-            .execute(pool)
-            .await
-            .unwrap();
+        let name = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str("test").unwrap();
+        let email_str = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str(email).unwrap();
+        let user = UserCreationView::new(&name, &email_str);
+        let hashed_pw = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str("test_password").unwrap();
+        let mut tx = pool.begin().await.unwrap();
+        let create = UserRepository::create(&user, &hashed_pw);
+        create.execute(&mut tx).await.unwrap();
+        create.commit(tx).await.unwrap();
     }
 
     async fn cleanup(pool: &Pool<MySql>, email: &str) {
-        sqlx::query("DELETE FROM users WHERE email = ?")
-            .bind(email)
-            .execute(pool)
-            .await
-            .unwrap();
+        let mut tx = pool.begin().await.unwrap();
+        let delete = UserRepository::delete(email);
+        delete.execute(&mut tx).await.unwrap();
+        delete.commit(tx).await.unwrap();
     }
 
     #[tokio::test]

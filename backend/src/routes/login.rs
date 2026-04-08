@@ -4,7 +4,7 @@ use rocket::serde::json::Json;
 use rocket::tokio::task::{self, JoinHandle};
 use rocket::{State, post};
 use sqlx::{MySql, Pool};
-use tracing::{Instrument, Span, error, info, info_span, span::Entered};
+use tracing::{Instrument, Span, error, info, info_span, warn, span::Entered};
 
 use crate::data_definitions::{JWT, UserLoginRequest, UserLoginView};
 use crate::database::ReadOnly;
@@ -27,8 +27,10 @@ pub async fn login(
             UserRepository::get_login_view(login_request.email)
                 .read(connection)
                 .await
-                .ok()
-                .flatten()
+                .unwrap_or_else(|err| {
+                    warn!(error = %err, "DB error fetching login view, falling back to dummy hash");
+                    None
+                })
                 .unwrap_or_else(|| UserLoginView {
                     id: -1,
                     password_hash: DUMMY_HASH.to_owned(),
@@ -97,12 +99,13 @@ mod tests {
     use crate::test_harness_setup::build_test_client;
 
     async fn cleanup(client: &Client, email: &str) {
+        use crate::database::Transactional;
+        use crate::database::user_repository::UserRepository;
         let db = client.rocket().state::<Pool<MySql>>().unwrap();
-        sqlx::query("DELETE FROM users WHERE email = ?")
-            .bind(email)
-            .execute(db)
-            .await
-            .unwrap();
+        let mut tx = db.begin().await.unwrap();
+        let delete = UserRepository::delete(email);
+        delete.execute(&mut tx).await.unwrap();
+        delete.commit(tx).await.unwrap();
     }
 
     #[tokio::test]

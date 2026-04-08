@@ -194,31 +194,46 @@ pub async fn signup(
     })??;
 
     let hashed_password: FixedSizedStr<MAX_UTF8_BYTES> =
-        FixedSizedStr::new_from_str(&hashed_password).unwrap();
+        match FixedSizedStr::new_from_str(&hashed_password) {
+            Ok(s) => s,
+            Err(err) => {
+                error!(error = %err, "Signup failed: hashed password exceeds max length");
+                return Err((Status::InternalServerError, "Internal server error"));
+            }
+        };
 
-    let mut transaction: Transaction<MySql> = db.begin().await.unwrap();
-    let name: FixedSizedStr<MAX_UTF8_BYTES> =
-        FixedSizedStr::new_from_str(signup_request.name).unwrap();
-    let email: FixedSizedStr<MAX_UTF8_BYTES> =
-        FixedSizedStr::new_from_str(signup_request.email).unwrap();
+    let mut transaction: Transaction<MySql> = match db.begin().await {
+        Ok(tx) => tx,
+        Err(err) => {
+            error!(error = %err, "Signup failed: could not begin transaction");
+            return Err((Status::InternalServerError, "Internal server error"));
+        }
+    };
+
+    let name: FixedSizedStr<MAX_UTF8_BYTES> = FixedSizedStr::new_from_str(signup_request.name)
+        .expect("name length was validated earlier");
+    let email: FixedSizedStr<MAX_UTF8_BYTES> = FixedSizedStr::new_from_str(signup_request.email)
+        .expect("email length was validated earlier");
 
     let user_creation_view: UserCreationView = UserCreationView::new(&name, &email);
     let create_user = UserRepository::create(&user_creation_view, &hashed_password);
 
     match create_user.execute(&mut transaction).await {
         Ok(_) => {
-            let sender: lettre::AsyncSmtpTransport<lettre::Tokio1Executor> =
-                email_sender.inner().clone();
-            let pool: Pool<MySql> = db.inner().clone();
-            let raw_email: String = signup_request.email.to_owned();
-            tokio::spawn(handle_signup_email(
-                sender,
-                validated_email,
-                raw_email,
-                pool,
-            ));
-            create_user.commit(transaction).await.unwrap();
-            Ok(Status::Created)
+            match create_user.commit(transaction).await {
+                Ok(_) => {
+                    let sender: lettre::AsyncSmtpTransport<lettre::Tokio1Executor> =
+                        email_sender.inner().clone();
+                    let pool: Pool<MySql> = db.inner().clone();
+                    let raw_email: String = signup_request.email.to_owned();
+                    tokio::spawn(handle_signup_email(sender, validated_email, raw_email, pool));
+                    Ok(Status::Created)
+                }
+                Err(err) => {
+                    error!(error = %err, "Signup failed: could not commit transaction");
+                    Err((Status::InternalServerError, "Internal server error"))
+                }
+            }
         }
         Err(err) => {
             error!(error = %err, "Signup failed: database error");
@@ -281,24 +296,39 @@ pub async fn signup(
         Err((Status::InternalServerError, "Internal server error"))
     })??;
 
-    let mut transaction: Transaction<MySql> = db.begin().await.unwrap();
+    let mut transaction: Transaction<MySql> = match db.begin().await {
+        Ok(tx) => tx,
+        Err(err) => {
+            error!(error = %err, "Signup failed: could not begin transaction");
+            return Err((Status::InternalServerError, "Internal server error"));
+        }
+    };
 
     let hashed_password: FixedSizedStr<MAX_UTF8_BYTES> =
-        FixedSizedStr::new_from_str(&hashed_password).unwrap();
+        match FixedSizedStr::new_from_str(&hashed_password) {
+            Ok(s) => s,
+            Err(err) => {
+                error!(error = %err, "Signup failed: hashed password exceeds max length");
+                return Err((Status::InternalServerError, "Internal server error"));
+            }
+        };
 
-    let name: FixedSizedStr<MAX_UTF8_BYTES> =
-        FixedSizedStr::new_from_str(signup_request.name).unwrap();
-    let email: FixedSizedStr<MAX_UTF8_BYTES> =
-        FixedSizedStr::new_from_str(signup_request.email).unwrap();
+    let name: FixedSizedStr<MAX_UTF8_BYTES> = FixedSizedStr::new_from_str(signup_request.name)
+        .expect("name length was validated earlier");
+    let email: FixedSizedStr<MAX_UTF8_BYTES> = FixedSizedStr::new_from_str(signup_request.email)
+        .expect("email length was validated earlier");
 
     let user_creation_view: UserCreationView = UserCreationView::new(&name, &email);
     let create_user = UserRepository::create(&user_creation_view, &hashed_password);
 
     match create_user.execute(&mut transaction).await {
-        Ok(_) => {
-            create_user.commit(transaction).await.unwrap();
-            Ok(Status::Created)
-        }
+        Ok(_) => match create_user.commit(transaction).await {
+            Ok(_) => Ok(Status::Created),
+            Err(err) => {
+                error!(error = %err, "Signup failed: could not commit transaction");
+                Err((Status::InternalServerError, "Internal server error"))
+            }
+        },
         Err(err) => {
             error!(error = %err, "Signup failed: database error");
             Err((Status::InternalServerError, "Internal server error"))
@@ -329,12 +359,12 @@ mod tests {
     use super::*;
 
     async fn cleanup(client: &Client, email: &str) {
+        use crate::database::Transactional;
         let db = client.rocket().state::<Pool<MySql>>().unwrap();
-        sqlx::query("DELETE FROM users WHERE email = ?")
-            .bind(email)
-            .execute(db)
-            .await
-            .unwrap();
+        let mut tx = db.begin().await.unwrap();
+        let delete = UserRepository::delete(email);
+        delete.execute(&mut tx).await.unwrap();
+        delete.commit(tx).await.unwrap();
     }
 
     #[cfg(feature = "email")]

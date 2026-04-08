@@ -37,35 +37,38 @@ impl ReadOnly for GetUserInfo {
 
 #[cfg(test)]
 mod tests {
-    use sqlx::{MySql, Pool, Row};
+    use sqlx::{MySql, Pool};
 
-    use crate::{database::ReadOnly, init_db};
+    use crate::{
+        data_definitions::{FixedSizedStr, MAX_UTF8_BYTES, UserCreationView},
+        database::{ReadOnly, Transactional, user_repository::UserRepository},
+        init_db,
+    };
 
     use super::GetUserInfo;
 
-    async fn setup(pool: &Pool<MySql>, email: &str) -> i32 {
-        sqlx::query("INSERT INTO users (name, email, password) VALUES (?, ?, ?)")
-            .bind("test")
-            .bind(email)
-            .bind("test_password")
-            .execute(pool)
-            .await
-            .unwrap();
-
-        sqlx::query("SELECT id FROM users WHERE email = ? LIMIT 1")
-            .bind(email)
-            .fetch_one(pool)
+    async fn setup(pool: &Pool<MySql>, email: &str) -> u32 {
+        let name = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str("test").unwrap();
+        let email_str = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str(email).unwrap();
+        let user = UserCreationView::new(&name, &email_str);
+        let hashed_pw = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str("test_password").unwrap();
+        let mut tx = pool.begin().await.unwrap();
+        let create = UserRepository::create(&user, &hashed_pw);
+        create.execute(&mut tx).await.unwrap();
+        create.commit(tx).await.unwrap();
+        UserRepository::get_login_view(email)
+            .read(pool)
             .await
             .unwrap()
-            .get::<i32, usize>(0)
+            .unwrap()
+            .id as u32
     }
 
     async fn cleanup(pool: &Pool<MySql>, email: &str) {
-        sqlx::query("DELETE FROM users WHERE email = ?")
-            .bind(email)
-            .execute(pool)
-            .await
-            .unwrap();
+        let mut tx = pool.begin().await.unwrap();
+        let delete = UserRepository::delete(email);
+        delete.execute(&mut tx).await.unwrap();
+        delete.commit(tx).await.unwrap();
     }
 
     #[tokio::test]
