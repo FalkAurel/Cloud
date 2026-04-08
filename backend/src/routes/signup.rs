@@ -1,41 +1,36 @@
 use crate::ARGON_2;
+use crate::data_definitions::{FixedSizedStr, UserCreationView};
 use crate::data_definitions::{MAX_UTF8_BYTES, UserSignupRequest};
+use crate::database::user_repository::UserRepository;
+use crate::database::{ReadOnly, Transactional};
 use argon2::PasswordHasher;
 use argon2::password_hash::{SaltString, rand_core::OsRng};
 use rocket::http::Status;
 use rocket::serde::json::Json;
 use rocket::tokio::task::JoinHandle;
 use rocket::{State, post, tokio};
+use sqlx::Transaction;
 use sqlx::{MySql, Pool};
 use tracing::{error, warn};
 
 const MIN_PASSWORD_LENGTH: u8 = 8;
 const MAX_PASSWORD_LENGTH: u8 = MAX_UTF8_BYTES as u8;
 
-const INSERT_QUERY_STR: &str = r#"
-INSERT INTO users (name, email, password) VALUES (?, ?, ?);
-"#;
-
-const CHECK_EMAIL_EXISTS: &str = r#"
-SELECT EXISTS(SELECT 1 FROM users WHERE email = ?);
-"#;
-
 #[cfg(feature = "email")]
 use email_const::*;
 
 #[cfg(feature = "email")]
 mod email_const {
+    use super::{MySql, Pool, error, warn};
     pub(super) use crate::data_definitions::{Email, EmailError, EmailSender};
     pub(super) use lettre::Address;
     pub(super) use lettre::transport::smtp::response::{Response, Severity};
     pub(super) use rocket::tokio::time::sleep;
+    use sqlx::Error as SQLError;
     pub(super) use std::num::NonZero;
     use std::time::Duration;
     use std::{env, sync::LazyLock};
-    use sqlx::{Error as SQLError, Row};
-    use super::{Pool, MySql, warn, error, CHECK_EMAIL_EXISTS};
     use tracing::info;
-
 
     pub(super) const RETRY_WAIT_TIME: Duration = Duration::from_secs(30);
     pub(super) const RETRIES: Option<NonZero<u8>> = NonZero::new(3);
@@ -133,14 +128,6 @@ mod email_const {
 
         unreachable!()
     }
-
-    pub(super) async fn email_exists(db: &Pool<MySql>, email: &str) -> Result<bool, SQLError> {
-        Ok(sqlx::query(CHECK_EMAIL_EXISTS)
-            .bind(email)
-            .fetch_one(db)
-            .await?
-            .get::<bool, usize>(0))
-    }
 }
 
 #[cfg(feature = "email")]
@@ -170,7 +157,10 @@ pub async fn signup(
         }
     };
 
-    match email_exists(db, signup_request.email).await {
+    match UserRepository::email_exists(validated_email.as_ref())
+        .read(db)
+        .await
+    {
         Ok(true) => {
             warn!(
                 email = signup_request.email,
@@ -203,13 +193,19 @@ pub async fn signup(
         Err((Status::InternalServerError, "Internal server error"))
     })??;
 
-    match sqlx::query(INSERT_QUERY_STR)
-        .bind(signup_request.name)
-        .bind(signup_request.email)
-        .bind(&hashed_password)
-        .execute(db.inner())
-        .await
-    {
+    let hashed_password: FixedSizedStr<MAX_UTF8_BYTES> =
+        FixedSizedStr::new_from_str(&hashed_password).unwrap();
+
+    let mut transaction: Transaction<MySql> = db.begin().await.unwrap();
+    let name: FixedSizedStr<MAX_UTF8_BYTES> =
+        FixedSizedStr::new_from_str(signup_request.name).unwrap();
+    let email: FixedSizedStr<MAX_UTF8_BYTES> =
+        FixedSizedStr::new_from_str(signup_request.email).unwrap();
+
+    let user_creation_view: UserCreationView = UserCreationView::new(&name, &email);
+    let create_user = UserRepository::create(&user_creation_view, &hashed_password);
+
+    match create_user.execute(&mut transaction).await {
         Ok(_) => {
             let sender: lettre::AsyncSmtpTransport<lettre::Tokio1Executor> =
                 email_sender.inner().clone();
@@ -221,6 +217,7 @@ pub async fn signup(
                 raw_email,
                 pool,
             ));
+            create_user.commit(transaction).await.unwrap();
             Ok(Status::Created)
         }
         Err(err) => {
@@ -248,7 +245,10 @@ pub async fn signup(
         return Err((Status::BadRequest, "Email length is invalid"));
     }
 
-    match email_exists(db, signup_request.email).await {
+    match UserRepository::email_exists(signup_request.email)
+        .read(db)
+        .await
+    {
         Ok(true) => {
             warn!(
                 email = signup_request.email,
@@ -281,14 +281,24 @@ pub async fn signup(
         Err((Status::InternalServerError, "Internal server error"))
     })??;
 
-    match sqlx::query(INSERT_QUERY_STR)
-        .bind(signup_request.name)
-        .bind(signup_request.email)
-        .bind(&hashed_password)
-        .execute(db.inner())
-        .await
-    {
-        Ok(_) => Ok(Status::Created),
+    let mut transaction: Transaction<MySql> = db.begin().await.unwrap();
+
+    let hashed_password: FixedSizedStr<MAX_UTF8_BYTES> =
+        FixedSizedStr::new_from_str(&hashed_password).unwrap();
+
+    let name: FixedSizedStr<MAX_UTF8_BYTES> =
+        FixedSizedStr::new_from_str(signup_request.name).unwrap();
+    let email: FixedSizedStr<MAX_UTF8_BYTES> =
+        FixedSizedStr::new_from_str(signup_request.email).unwrap();
+
+    let user_creation_view: UserCreationView = UserCreationView::new(&name, &email);
+    let create_user = UserRepository::create(&user_creation_view, &hashed_password);
+
+    match create_user.execute(&mut transaction).await {
+        Ok(_) => {
+            create_user.commit(transaction).await.unwrap();
+            Ok(Status::Created)
+        }
         Err(err) => {
             error!(error = %err, "Signup failed: database error");
             Err((Status::InternalServerError, "Internal server error"))

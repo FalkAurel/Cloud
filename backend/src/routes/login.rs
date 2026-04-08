@@ -3,15 +3,13 @@ use rocket::http::{Cookie, CookieJar, SameSite, Status};
 use rocket::serde::json::Json;
 use rocket::tokio::task::{self, JoinHandle};
 use rocket::{State, post};
-use sqlx::{Error, MySql, Pool, Row};
-use tracing::{Instrument, error, info, info_span, warn};
+use sqlx::{MySql, Pool};
+use tracing::{Instrument, Span, error, info, info_span, span::Entered};
 
 use crate::data_definitions::{JWT, UserLoginRequest, UserLoginView};
+use crate::database::ReadOnly;
+use crate::database::user_repository::UserRepository;
 use crate::{ARGON_2, TOKEN_LIFETIME};
-
-const LOGIN_QUERY_STR: &str = r#"
-SELECT password AS password_hash, id FROM users WHERE email = ? LIMIT 1;
-"#;
 
 // A valid argon2id hash of a random string. Used to run a full verify_password
 // when the user does not exist, preventing timing-based user enumeration.
@@ -26,20 +24,21 @@ pub async fn login(
     let span: tracing::Span = info_span!("login", email = %login_request.email);
     async move {
         let UserLoginView { id, password_hash } =
-            get_user_view(connection.inner(), login_request.email)
+            UserRepository::get_login_view(login_request.email)
+                .read(connection)
                 .await
                 .ok()
                 .flatten()
                 .unwrap_or_else(|| UserLoginView {
-                    id: -1, // dummy: verify_password will fail against DUMMY_HASH, preventing user enumeration
+                    id: -1,
                     password_hash: DUMMY_HASH.to_owned(),
                 });
 
         let password: String = login_request.into_inner().password.to_owned();
 
-        let blocking_span = tracing::Span::current();
+        let blocking_span: Span = tracing::Span::current();
         let join_handle: JoinHandle<Option<String>> = task::spawn_blocking(move || {
-            let _guard = blocking_span.enter();
+            let _guard: Entered = blocking_span.enter();
             let hash: PasswordHash = match PasswordHash::new(&password_hash) {
                 Ok(hash) => hash,
                 Err(err) => {
@@ -85,32 +84,6 @@ pub async fn login(
     }
     .instrument(span)
     .await
-}
-
-async fn get_user_view(db: &Pool<MySql>, email: &str) -> Result<Option<UserLoginView>, Error> {
-    match sqlx::query(LOGIN_QUERY_STR)
-        .bind(email)
-        .fetch_optional(db)
-        .await
-    {
-        Ok(Some(row)) => {
-            let password_hash: String = row.get("password_hash");
-            let user_id: i32 = row.get("id");
-
-            Ok(Some(UserLoginView {
-                id: user_id,
-                password_hash,
-            }))
-        }
-        Ok(None) => {
-            info!(email, "Login attempt for unknown email");
-            Ok(None)
-        }
-        Err(err) => {
-            warn!(error=%err, "Failed to query the db");
-            Err(err)
-        }
-    }
 }
 
 #[cfg(test)]

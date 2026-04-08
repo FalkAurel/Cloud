@@ -1,12 +1,17 @@
-use std::{env, sync::LazyLock, time::Duration};
+use std::{sync::LazyLock, time::Duration};
 
 use argon2::Argon2;
-use sqlx::{MySql, Pool, mysql::MySqlConnectOptions};
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
-pub mod data_definitions;
+pub(crate) mod data_definitions;
+pub(crate) mod database;
 pub mod routes;
+
+pub use database::init_db;
+
+#[cfg(feature = "email")]
+pub use data_definitions::init_email_sender;
 
 #[cfg(debug_assertions)]
 mod http_span;
@@ -24,23 +29,6 @@ pub static TRACE_LEVEL: LazyLock<Level> = LazyLock::new(|| {
 
     log_level
 });
-
-pub async fn init_db() -> Pool<MySql> {
-    let user: String = env::var("MARIADB_USER").expect("Provide a USER");
-    let password: String = env::var("MARIADB_PASSWORD").expect("Provide a Password");
-    let database: String = env::var("MARIADB_DATABASE").expect("Provide a database");
-    let host: String = env::var("MARIADB_HOST").unwrap_or_else(|_| "db".to_string());
-
-    let connection_pool: Pool<MySql> = Pool::connect_lazy_with(
-        MySqlConnectOptions::new()
-            .host(&host)
-            .username(&user)
-            .password(&password)
-            .database(&database),
-    );
-
-    connection_pool
-}
 
 #[cfg(test)]
 mod test_harness_setup {

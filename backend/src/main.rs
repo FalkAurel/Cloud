@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate rocket;
 #[cfg(feature = "email")]
-use backend::data_definitions::init_email_sender;
+use backend::init_email_sender;
 use backend::{
     TRACE_LEVEL, init_db,
     routes::{login_request, logout_request, me_request, signup_request},

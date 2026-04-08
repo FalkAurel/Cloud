@@ -1,51 +1,30 @@
 use rocket::{State, get, http::Status, serde::json::Json};
-use sqlx::{Error, MySql, Pool, Row};
+use sqlx::{MySql, Pool};
 use tracing::{error, info, warn};
 
-use crate::data_definitions::{Auth, FixedSizedStr, StandardUserView};
-
-const GET_USER_INFO: &str = r#"
-SELECT name, email, is_admin FROM users WHERE id = ? LIMIT 1;
-"#;
+use crate::{
+    data_definitions::{Auth, StandardUserView},
+    database::{ReadOnly, user_repository::UserRepository},
+};
 
 #[get("/me")]
 pub async fn me(
     jwt: Auth,
-    db_connection: &State<Pool<MySql>>,
+    db: &State<Pool<MySql>>,
 ) -> Result<(Status, Json<StandardUserView>), (Status, &'static str)> {
     let user_id: u32 = jwt.0.user_id;
 
     info!(user_id = user_id, "Fetching current user profile");
 
-    match sqlx::query(GET_USER_INFO)
-        .bind(user_id as i32)
-        .fetch_one(db_connection.inner())
-        .await
-    {
-        Ok(row) => {
-            let name: FixedSizedStr<160> = FixedSizedStr::new_from_str(row.get::<&str, usize>(0))
-                .expect("DB contains invalid name that passed signup validation");
-            let email: FixedSizedStr<160> = FixedSizedStr::new_from_str(row.get::<&str, usize>(1))
-                .expect("DB contains invalid email that passed signup validation");
-            let is_admin: bool = row.get(2);
-
+    match UserRepository::get_user_info(user_id).read(db).await {
+        Ok(Some(user)) => {
             info!(user_id = user_id, "User profile fetched successfully");
-
-            Ok((
-                Status::Ok,
-                Json(StandardUserView {
-                    name,
-                    email,
-                    is_admin,
-                }),
-            ))
+            Ok((Status::Ok, Json(user)))
         }
-
-        Err(Error::RowNotFound) => {
+        Ok(None) => {
             warn!(user_id = user_id, "User ID from JWT not found in database");
             Err((Status::Unauthorized, "User not found"))
         }
-
         Err(e) => {
             error!(user_id = user_id, error = %e, "Database error while fetching user");
             Err((Status::InternalServerError, "Internal server error"))
@@ -59,10 +38,11 @@ mod tests {
     use rocket::local::asynchronous::Client;
     use rocket::routes;
     use rocket::serde::json;
-    use sqlx::{MySql, Pool};
+    use sqlx::{MySql, Pool, Transaction};
 
     use crate::TOKEN_LIFETIME;
     use crate::data_definitions::JWT;
+    use crate::database::Transactional;
     use crate::routes::signup_request;
     use crate::test_harness_setup::build_test_client;
 
@@ -70,21 +50,20 @@ mod tests {
 
     async fn cleanup(client: &Client, email: &str) {
         let db = client.rocket().state::<Pool<MySql>>().unwrap();
-        sqlx::query("DELETE FROM users WHERE email = ?")
-            .bind(email)
-            .execute(db)
-            .await
-            .unwrap();
+        let mut transaction: Transaction<MySql> = db.begin().await.unwrap();
+        let delete_user = UserRepository::delete(email);
+        delete_user.execute(&mut transaction).await.unwrap();
+        delete_user.commit(transaction).await.unwrap();
     }
 
     async fn get_user_id(client: &Client, email: &str) -> i32 {
         let db = client.rocket().state::<Pool<MySql>>().unwrap();
-        sqlx::query("SELECT id FROM users WHERE email = ? LIMIT 1")
-            .bind(email)
-            .fetch_one(db)
+        UserRepository::get_login_view(email)
+            .read(db)
             .await
             .unwrap()
-            .get::<i32, usize>(0)
+            .unwrap()
+            .id
     }
 
     #[tokio::test]
