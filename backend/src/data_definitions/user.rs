@@ -1,3 +1,4 @@
+use chrono::{DateTime, Local};
 use serde::{self, Deserialize, Serialize};
 #[cfg(feature = "export_binding")]
 use ts_rs::TS;
@@ -17,6 +18,10 @@ pub struct StandardUserView {
     #[cfg_attr(feature = "export_binding", ts(type = "string"))]
     pub(crate) email: FixedSizedStr<MAX_UTF8_BYTES>,
     pub(crate) is_admin: bool,
+    #[cfg_attr(feature = "export_binding", ts(type = "string"))]
+    pub(crate) created_at: DateTime<Local>,
+    #[cfg_attr(feature = "export_binding", ts(type = "string"))]
+    pub(crate) modified_at: DateTime<Local>,
 }
 
 impl StandardUserView {
@@ -78,7 +83,8 @@ pub struct UserSignupRequest<'a> {
 #[cfg(test)]
 mod user {
     use super::StandardUserView;
-    use rocket::serde::json;
+    use chrono::{DateTime, Local};
+    use rocket::serde::json::{self, Value, json};
 
     use crate::data_definitions::{
         FixedSizedStr,
@@ -89,30 +95,44 @@ mod user {
 
     #[test]
     fn serialize_user() {
-        let user: StandardUserView = StandardUserView {
+        let now: DateTime<Local> = Local::now();
+        let original_user = StandardUserView {
             id: 0,
-            name: FixedSizedStr::new_from_str(TEST_NAME).unwrap(),
-            email: FixedSizedStr::new_from_str(TEST_EMAIL).unwrap(),
+            name: FixedSizedStr::new_from_str("test").unwrap(),
+            email: FixedSizedStr::new_from_str("test@gmail.com").unwrap(),
             is_admin: false,
+            created_at: now,
+            modified_at: now,
         };
 
-        let expected_json: &str =
-            r#"{"id":0,"name":"test","email":"test@gmail.com","is_admin":false}"#;
-        assert_eq!(expected_json, json::to_string(&user).unwrap())
+        // 1. Serialize directly from the struct to a String (preserves order)
+        let json_user_string: String = json::to_string(&original_user).unwrap();
+
+        // 2. Deserialize back into a struct
+        let user: StandardUserView = json::from_str(&json_user_string).unwrap();
+
+        // 3. Serialize the second struct to a String (preserves order)
+        let second_json_string: String = json::to_string(&user).unwrap();
+
+        // Now both strings will have the same field order: id, name, email, etc.
+        assert_eq!(json_user_string, second_json_string);
     }
 
     #[test]
     fn deserialize_user() {
-        let json_user: &str = r#"
-        {
-            "id": 0,
-            "name": "test",
-            "email": "test@gmail.com",
-            "is_admin": false
-        }
-        "#;
+        let now: DateTime<Local> = Local::now();
+        let user_value: Value = json!(StandardUserView {
+            id: 0,
+            name: FixedSizedStr::new_from_str("test").unwrap(),
+            email: FixedSizedStr::new_from_str("test@gmail.com").unwrap(),
+            is_admin: false,
+            created_at: now,
+            modified_at: now
+        });
 
-        let user: StandardUserView = json::from_str::<StandardUserView>(json_user).unwrap();
+        let json_user_string: String = user_value.to_string();
+
+        let user: StandardUserView = json::from_str::<StandardUserView>(&json_user_string).unwrap();
 
         assert_eq!(user.get_name(), TEST_NAME);
         assert_eq!(user.get_email(), TEST_EMAIL);
@@ -131,6 +151,8 @@ mod user {
             name: FixedSizedStr::new_from_str(&long_name).unwrap(),
             email: FixedSizedStr::new_from_str(TEST_EMAIL).unwrap(),
             is_admin: false,
+            created_at: Local::now(),
+            modified_at: Local::now(),
         };
 
         let recovered_user: StandardUserView =
