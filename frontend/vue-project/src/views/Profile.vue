@@ -163,7 +163,7 @@ import BaseSpinner from '@/components/ui/BaseSpinner.vue'
 import NotAuthorized from '@/components/ui/NotAuthorized.vue'
 import { returnBytesFormated } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth'
-import type { StandardUserView } from '@/types/api'
+import type { StandardUserView } from '@/types/bindings/StandardUserView'
 import { timeOfDay } from '@/utils/timeOfDay'
 
 defineOptions({ name: 'UserProfile' })
@@ -172,9 +172,12 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const profile = ref<StandardUserView>({
+  id: 0,
   name: '',
   email: '',
   is_admin: false,
+  created_at: '',
+  modified_at: ''
 })
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -205,6 +208,13 @@ async function fetchProfile() {
       return
     }
     profile.value = await res.json()
+    console.log(profile.value)
+    memberSince = new Date(profile.value.created_at).toLocaleDateString('de-DE', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    })
+
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'Unbekannter Fehler'
     showError.value = true
@@ -232,11 +242,7 @@ const initials = computed(() =>
     .slice(0, 2) || '?'
 )
 
-const memberSince = new Date(2024, 0, 1).toLocaleDateString('de-DE', {
-  day: '2-digit',
-  month: 'long',
-  year: 'numeric',
-})
+let memberSince: string = ""
 
 const storageSegments = computed(() => [
   { label: 'Dokumente', bytes: 600_000_000, percent: 30, color: '#003580' },
