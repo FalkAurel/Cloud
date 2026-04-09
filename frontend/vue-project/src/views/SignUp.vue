@@ -38,7 +38,7 @@ import BaseInput from '../components/ui/BaseInput.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import CallToAction from '../components/ui/CallToAction.vue'
 import BaseNotification from '../components/ui/BaseNotification.vue'
-import type { SignupRequest } from '../types/api'
+import type { SignupRequest } from '../types/bindings/UserSignupRequest'
 import router from '@/router'
 
 const showNotification = ref(false)
