@@ -4,6 +4,9 @@ use argon2::Argon2;
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
+#[cfg(feature = "export_binding")]
+pub mod data_definitions;
+#[cfg(not(feature = "export_binding"))]
 pub(crate) mod data_definitions;
 pub(crate) mod database;
 pub mod routes;

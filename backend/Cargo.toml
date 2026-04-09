@@ -30,7 +30,7 @@ opt-level = 0
 
 
 [features]
-#default = ["email"]
+default = ["email"]
 export_binding = ["ts-rs"]
 email = ["lettre"]
 
