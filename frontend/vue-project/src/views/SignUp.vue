@@ -38,7 +38,7 @@ import BaseInput from '../components/ui/BaseInput.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import CallToAction from '../components/ui/CallToAction.vue'
 import BaseNotification from '../components/ui/BaseNotification.vue'
-import type { SignupRequest } from '../types/api'
+import type { UserSignupRequest } from '../types/bindings/UserSignupRequest'
 import router from '@/router'
 
 const showNotification = ref(false)
@@ -59,7 +59,7 @@ async function signup() {
     return
   }
 
-  const sign_up_request: SignupRequest = {
+  const sign_up_request: UserSignupRequest = {
     email: email.value,
     password: password.value,
     name: username.value
