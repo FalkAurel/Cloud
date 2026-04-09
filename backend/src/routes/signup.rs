@@ -219,22 +219,25 @@ pub async fn signup(
     let create_user = UserRepository::create(&user_creation_view, &hashed_password);
 
     match create_user.execute(&mut transaction).await {
-        Ok(_) => {
-            match create_user.commit(transaction).await {
-                Ok(_) => {
-                    let sender: lettre::AsyncSmtpTransport<lettre::Tokio1Executor> =
-                        email_sender.inner().clone();
-                    let pool: Pool<MySql> = db.inner().clone();
-                    let raw_email: String = signup_request.email.to_owned();
-                    tokio::spawn(handle_signup_email(sender, validated_email, raw_email, pool));
-                    Ok(Status::Created)
-                }
-                Err(err) => {
-                    error!(error = %err, "Signup failed: could not commit transaction");
-                    Err((Status::InternalServerError, "Internal server error"))
-                }
+        Ok(_) => match create_user.commit(transaction).await {
+            Ok(_) => {
+                let sender: lettre::AsyncSmtpTransport<lettre::Tokio1Executor> =
+                    email_sender.inner().clone();
+                let pool: Pool<MySql> = db.inner().clone();
+                let raw_email: String = signup_request.email.to_owned();
+                tokio::spawn(handle_signup_email(
+                    sender,
+                    validated_email,
+                    raw_email,
+                    pool,
+                ));
+                Ok(Status::Created)
             }
-        }
+            Err(err) => {
+                error!(error = %err, "Signup failed: could not commit transaction");
+                Err((Status::InternalServerError, "Internal server error"))
+            }
+        },
         Err(err) => {
             error!(error = %err, "Signup failed: database error");
             Err((Status::InternalServerError, "Internal server error"))

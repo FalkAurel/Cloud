@@ -4,7 +4,7 @@ use rocket::serde::json::Json;
 use rocket::tokio::task::{self, JoinHandle};
 use rocket::{State, post};
 use sqlx::{MySql, Pool};
-use tracing::{Instrument, Span, error, info, info_span, warn, span::Entered};
+use tracing::{Instrument, Span, error, info, info_span, span::Entered, warn};
 
 use crate::data_definitions::{JWT, UserLoginRequest, UserLoginView};
 use crate::database::ReadOnly;

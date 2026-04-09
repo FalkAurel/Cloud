@@ -12,7 +12,7 @@ struct FixedStrVisitor<const BYTES: usize>;
 #[derive(Debug)]
 pub(crate) struct TooLong<const MAX_LENGTH: usize>;
 
-impl <const MAX_LENGTH: usize> fmt::Display for TooLong<MAX_LENGTH> {
+impl<const MAX_LENGTH: usize> fmt::Display for TooLong<MAX_LENGTH> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "The string must not exceed {MAX_LENGTH} bytes")
     }

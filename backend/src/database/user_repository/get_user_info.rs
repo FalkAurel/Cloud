@@ -12,7 +12,7 @@ impl GetUserInfo {
 }
 
 const USER_INFO: &str = r#"
-SELECT id, name, email, is_admin FROM users WHERE id = ? LIMIT 1;
+SELECT id, name, email, is_admin, created_at, modified_at FROM users WHERE id = ? LIMIT 1;
 "#;
 
 impl ReadOnly for GetUserInfo {
@@ -31,6 +31,8 @@ impl ReadOnly for GetUserInfo {
                 email: FixedSizedStr::new_from_str(row.get::<&str, usize>(2))
                     .expect("DB contains invalid email that passed signup validation"),
                 is_admin: row.get(3),
+                created_at: row.get(4),
+                modified_at: row.get(5),
             }))
     }
 }
