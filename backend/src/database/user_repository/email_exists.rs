@@ -29,7 +29,7 @@ impl ReadOnly for EmailExists<'_> {
 
 #[cfg(test)]
 mod tests {
-    use sqlx::{MySql, Pool};
+    use sqlx::{MySql, Pool, Transaction};
 
     use crate::{
         data_definitions::{FixedSizedStr, MAX_UTF8_BYTES, UserCreationView},
@@ -41,11 +41,11 @@ mod tests {
     use super::EmailExists;
 
     async fn setup(pool: &Pool<MySql>, email: &str) {
-        let name = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str("test").unwrap();
-        let email_str = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str(email).unwrap();
-        let user = UserCreationView::new(&name, &email_str);
-        let hashed_pw = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str("test_password").unwrap();
-        let mut tx = pool.begin().await.unwrap();
+        let name: FixedSizedStr<MAX_UTF8_BYTES> = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str("test").unwrap();
+        let email_str: FixedSizedStr<MAX_UTF8_BYTES> = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str(email).unwrap();
+        let user: UserCreationView = UserCreationView::new(&name, &email_str);
+        let hashed_pw: FixedSizedStr<MAX_UTF8_BYTES> = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str("test_password").unwrap();
+        let mut tx: Transaction<MySql> = pool.begin().await.unwrap();
         let create = UserRepository::create(&user, &hashed_pw);
         create.execute(&mut tx).await.unwrap();
         create.commit(tx).await.unwrap();
@@ -66,7 +66,7 @@ mod tests {
 
     #[tokio::test]
     async fn returns_false_for_nonexistent_email() {
-        let pool = init_db().await;
+        let pool: Pool<MySql> = init_db().await;
         assert!(
             !EmailExists::new("ghost@test.com")
                 .read(&pool)
