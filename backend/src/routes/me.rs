@@ -1,12 +1,13 @@
 use rocket::{State, get, http::Status, serde::json::Json};
 use sqlx::{MySql, Pool};
-use tracing::{error, info, warn};
+use tracing::{error, info, instrument, warn};
 
 use crate::{
     data_definitions::{Auth, StandardUserView},
     database::{ReadOnly, user_repository::UserRepository},
 };
 
+#[instrument(skip(jwt, db))]
 #[get("/me")]
 pub async fn me(
     jwt: Auth,

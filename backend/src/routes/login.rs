@@ -4,6 +4,7 @@ use rocket::serde::json::Json;
 use rocket::tokio::task::{self, JoinHandle};
 use rocket::{State, post};
 use sqlx::{MySql, Pool};
+use tracing::instrument;
 use tracing::{Instrument, Span, error, info, info_span, span::Entered, warn};
 
 use crate::data_definitions::{JWT, UserLoginRequest, UserLoginView};
@@ -15,6 +16,7 @@ use crate::{ARGON_2, TOKEN_LIFETIME};
 // when the user does not exist, preventing timing-based user enumeration.
 const DUMMY_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$c29tZXJhbmRvbXNhbHQ$RoB4RWBSupGkPkOKA7HiYRmFjhSeop6UVKzSFbGMFG4";
 
+#[instrument(skip(connection, cookies))]
 #[post("/login", format = "json", data = "<login_request>")]
 pub async fn login(
     login_request: Json<UserLoginRequest<'_>>,

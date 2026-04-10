@@ -10,16 +10,10 @@ pub mod data_definitions;
 pub(crate) mod data_definitions;
 pub(crate) mod database;
 pub mod routes;
-
 pub use database::init_db;
 
 #[cfg(feature = "email")]
 pub use data_definitions::init_email_sender;
-
-#[cfg(debug_assertions)]
-mod http_span;
-#[cfg(debug_assertions)]
-pub use http_span::RequestTraceSpan;
 
 pub(crate) static ARGON_2: LazyLock<Argon2> = LazyLock::new(|| Argon2::default());
 pub(crate) const TOKEN_LIFETIME: Duration = Duration::from_mins(10);

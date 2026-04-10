@@ -61,7 +61,7 @@ impl<'a> UserCreationView<'a> {
 }
 
 #[cfg_attr(feature = "export_binding", derive(TS))]
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct UserLoginRequest<'a> {
     pub(crate) email: &'a str,
     pub(crate) password: &'a str,

@@ -1,9 +1,11 @@
 use std::{
     env,
+    fmt::Debug,
     sync::LazyLock,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use chrono::DateTime;
 use jsonwebtoken::{
     Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, decode_header, encode,
     errors::Error as JWTError,
@@ -23,6 +25,17 @@ static JWT_SECRET: LazyLock<EncodingKey> = LazyLock::new(|| {
 pub struct JWT {
     pub(crate) exp: u64,     // in milis
     pub(crate) user_id: u32, // 16K users should be fine for now
+}
+
+impl Debug for JWT {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "UserID: {}, Expiration: {}",
+            self.user_id,
+            DateTime::from_timestamp_millis(self.exp as i64).unwrap_or_else(|| DateTime::default()) // ToDo: is this really the way to handle the case when we face an invalid expiration date?
+        )
+    }
 }
 
 #[derive(Debug)]
@@ -68,6 +81,7 @@ impl JWT {
     }
 }
 
+#[derive(Debug)]
 pub struct Auth(pub JWT);
 
 impl Auth {
