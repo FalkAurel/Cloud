@@ -39,6 +39,7 @@ mod tests {
         data_definitions::{FixedSizedStr, MAX_UTF8_BYTES, UserCreationView},
         database::{ReadOnly, Transactional, user_repository::UserRepository},
         init_db,
+        test_harness_setup::cleanup_user_by_email,
     };
 
     use super::GetLoginView;
@@ -58,10 +59,7 @@ mod tests {
     }
 
     async fn cleanup(pool: &Pool<MySql>, email: &str) {
-        let mut tx = pool.begin().await.unwrap();
-        let delete = UserRepository::delete(email);
-        delete.execute(&mut tx).await.unwrap();
-        delete.commit(tx).await.unwrap();
+        cleanup_user_by_email(pool, email).await;
     }
 
     #[tokio::test]
@@ -79,7 +77,7 @@ mod tests {
 
     #[tokio::test]
     async fn returns_none_for_nonexistent_email() {
-        let pool = init_db().await;
+        let pool: Pool<MySql> = init_db().await;
         assert!(
             GetLoginView::new("ghost@test.com")
                 .read(&pool)

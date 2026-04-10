@@ -28,8 +28,9 @@ pub static TRACE_LEVEL: LazyLock<Level> = LazyLock::new(|| {
 });
 
 #[cfg(test)]
-mod test_harness_setup {
+pub(crate) mod test_harness_setup {
     use rocket::{Route, local::asynchronous::Client};
+    use sqlx::{MySql, Pool};
 
     pub(crate) async fn build_test_client(routes: &[Route]) -> Client {
         #[cfg(feature = "email")]
@@ -53,5 +54,20 @@ mod test_harness_setup {
             let rocket = Rocket::build().mount("/", routes).manage(init_db().await);
             Client::tracked(rocket).await.unwrap()
         }
+    }
+
+    pub(crate) async fn cleanup_user_by_email(pool: &Pool<MySql>, email: &str) {
+        use crate::database::{ReadOnly, Transactional, user_repository::UserRepository};
+
+        let id: u32 = UserRepository::get_login_view(email)
+            .read(pool)
+            .await
+            .unwrap()
+            .unwrap()
+            .id as u32;
+        let mut tx: sqlx::Transaction<'_, MySql> = pool.begin().await.unwrap();
+        let delete = UserRepository::delete(id);
+        delete.execute(&mut tx).await.unwrap();
+        delete.commit(tx).await.unwrap();
     }
 }

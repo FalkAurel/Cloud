@@ -24,8 +24,8 @@ impl UserRepository {
         CreateUser::new(user, hashed_pw)
     }
 
-    pub fn delete(email: &str) -> impl Transactional<Success = (), Error = sqlx::Error> + '_ {
-        DeleteUser::new(email)
+    pub fn delete(user_id: u32) -> impl Transactional<Success = (), Error = sqlx::Error> {
+        DeleteUser::new(user_id)
     }
 
     pub fn email_exists(email: &str) -> impl ReadOnly<Success = bool, Error = sqlx::Error> + '_ {

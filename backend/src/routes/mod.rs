@@ -1,8 +1,10 @@
+mod delete_user;
 mod login;
 mod logout;
 mod me;
 mod signup;
 
+pub use delete_user::delete as delete_user_request;
 pub use login::login as login_request;
 pub use logout::logout as logout_request;
 pub use me::me as me_request;

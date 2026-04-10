@@ -98,17 +98,7 @@ mod tests {
     use sqlx::{MySql, Pool};
 
     use crate::routes::{login_request, signup_request};
-    use crate::test_harness_setup::build_test_client;
-
-    async fn cleanup(client: &Client, email: &str) {
-        use crate::database::Transactional;
-        use crate::database::user_repository::UserRepository;
-        let db = client.rocket().state::<Pool<MySql>>().unwrap();
-        let mut tx = db.begin().await.unwrap();
-        let delete = UserRepository::delete(email);
-        delete.execute(&mut tx).await.unwrap();
-        delete.commit(tx).await.unwrap();
-    }
+    use crate::test_harness_setup::{build_test_client, cleanup_user_by_email};
 
     #[tokio::test]
     #[ignore = "requires database"]
@@ -138,7 +128,7 @@ mod tests {
             .await;
 
         assert_eq!(response.status(), HttpStatus::Ok);
-        cleanup(&client, email).await;
+        cleanup_user_by_email(client.rocket().state::<Pool<MySql>>().unwrap(), email).await;
     }
 
     #[tokio::test]
@@ -168,7 +158,7 @@ mod tests {
             .await;
 
         assert_eq!(response.status(), HttpStatus::Unauthorized);
-        cleanup(&client, email).await;
+        cleanup_user_by_email(client.rocket().state::<Pool<MySql>>().unwrap(), email).await;
     }
 
     #[tokio::test]
