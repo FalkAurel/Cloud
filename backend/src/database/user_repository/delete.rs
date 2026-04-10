@@ -2,19 +2,19 @@ use sqlx::{Error, MySql, Transaction};
 
 use crate::database::Transactional;
 
-pub(super) struct DeleteUser<'a>(&'a str);
+pub(super) struct DeleteUser(i32);
 
-impl<'a> DeleteUser<'a> {
-    pub const fn new(email: &'a str) -> Self {
-        Self(email)
+impl DeleteUser {
+    pub const fn new(user_id: u32) -> Self {
+        Self(user_id as i32)
     }
 }
 
 const DELETE_USER: &str = r#"
-DELETE FROM users WHERE email = ?;
+DELETE FROM users WHERE id = ?;
 "#;
 
-impl<'a> Transactional for DeleteUser<'a> {
+impl Transactional for DeleteUser {
     type Success = ();
     type Error = sqlx::Error;
 
