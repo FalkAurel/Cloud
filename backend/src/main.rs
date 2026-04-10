@@ -38,12 +38,6 @@ async fn main() -> Result<(), rocket::Error> {
         server_config.log_level = LogLevel::Critical;
     }
 
-    #[cfg(debug_assertions)]
-    fastrace::set_reporter(
-        fastrace::collector::ConsoleReporter,
-        fastrace::collector::Config::default(),
-    );
-
     if cfg!(debug_assertions) {
         let subscriber = tracing_subscriber::fmt()
             .with_writer(std::io::stdout.with_min_level(*TRACE_LEVEL))
