@@ -39,23 +39,14 @@ mod tests {
     use rocket::local::asynchronous::Client;
     use rocket::routes;
     use rocket::serde::json;
-    use sqlx::{MySql, Pool, Transaction};
+    use sqlx::{MySql, Pool};
 
     use crate::TOKEN_LIFETIME;
     use crate::data_definitions::JWT;
-    use crate::database::Transactional;
     use crate::routes::signup_request;
-    use crate::test_harness_setup::build_test_client;
+    use crate::test_harness_setup::{build_test_client, cleanup_user_by_email};
 
     use super::*;
-
-    async fn cleanup(client: &Client, email: &str) {
-        let db = client.rocket().state::<Pool<MySql>>().unwrap();
-        let mut transaction: Transaction<MySql> = db.begin().await.unwrap();
-        let delete_user = UserRepository::delete(email);
-        delete_user.execute(&mut transaction).await.unwrap();
-        delete_user.commit(transaction).await.unwrap();
-    }
 
     async fn get_user_id(client: &Client, email: &str) -> i32 {
         let db = client.rocket().state::<Pool<MySql>>().unwrap();
@@ -100,7 +91,7 @@ mod tests {
         assert_eq!(body["name"], "Me Test");
         assert_eq!(body["is_admin"], false);
 
-        cleanup(&client, email).await;
+        cleanup_user_by_email(client.rocket().state::<Pool<MySql>>().unwrap(), email).await;
     }
 
     #[tokio::test]

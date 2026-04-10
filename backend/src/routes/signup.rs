@@ -357,18 +357,9 @@ mod tests {
     use rocket::local::asynchronous::Client;
     use rocket::routes;
 
-    use crate::test_harness_setup::build_test_client;
+    use crate::test_harness_setup::{build_test_client, cleanup_user_by_email};
 
     use super::*;
-
-    async fn cleanup(client: &Client, email: &str) {
-        use crate::database::Transactional;
-        let db = client.rocket().state::<Pool<MySql>>().unwrap();
-        let mut tx = db.begin().await.unwrap();
-        let delete = UserRepository::delete(email);
-        delete.execute(&mut tx).await.unwrap();
-        delete.commit(tx).await.unwrap();
-    }
 
     #[cfg(feature = "email")]
     #[test]
@@ -415,7 +406,11 @@ mod tests {
             .dispatch()
             .await;
         assert_eq!(response.status(), HttpStatus::Created);
-        cleanup(&client, "newuser@example.com").await;
+        cleanup_user_by_email(
+            client.rocket().state::<Pool<MySql>>().unwrap(),
+            "newuser@example.com",
+        )
+        .await;
     }
 
     #[tokio::test]
@@ -437,7 +432,11 @@ mod tests {
             .dispatch()
             .await;
         assert_eq!(response.status(), HttpStatus::Conflict);
-        cleanup(&client, "duplicate@example.com").await;
+        cleanup_user_by_email(
+            client.rocket().state::<Pool<MySql>>().unwrap(),
+            "duplicate@example.com",
+        )
+        .await;
     }
 
     #[tokio::test]

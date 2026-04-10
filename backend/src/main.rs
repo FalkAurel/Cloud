@@ -4,7 +4,7 @@ extern crate rocket;
 use backend::init_email_sender;
 use backend::{
     TRACE_LEVEL, init_db,
-    routes::{login_request, logout_request, me_request, signup_request},
+    routes::{delete_user_request, login_request, logout_request, me_request, signup_request},
 };
 
 use rocket::{Config, Rocket, get};
@@ -91,7 +91,8 @@ async fn build_rocket(server_config: Config) -> Rocket<rocket::Build> {
                 login_request,
                 logout_request,
                 signup_request,
-                me_request
+                me_request,
+                delete_user_request
             ],
         )
         .attach(cors);

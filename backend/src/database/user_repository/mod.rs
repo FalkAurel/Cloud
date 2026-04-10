@@ -24,7 +24,7 @@ impl UserRepository {
         CreateUser::new(user, hashed_pw)
     }
 
-    pub fn delete(user_id: u32) -> impl Transactional<Success = (), Error = sqlx::Error> + '_ {
+    pub fn delete(user_id: u32) -> impl Transactional<Success = (), Error = sqlx::Error> {
         DeleteUser::new(user_id)
     }
 

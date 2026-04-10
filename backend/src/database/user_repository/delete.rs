@@ -45,7 +45,17 @@ mod tests {
             user_repository::{UserRepository, create::CreateUser, delete::DeleteUser},
         },
         init_db,
+        test_harness_setup::cleanup_user_by_email,
     };
+
+    async fn get_id(pool: &sqlx::Pool<sqlx::MySql>, email: &str) -> u32 {
+        UserRepository::get_login_view(email)
+            .read(pool)
+            .await
+            .unwrap()
+            .unwrap()
+            .id as u32
+    }
 
     #[tokio::test]
     async fn delete_user() {
@@ -65,8 +75,10 @@ mod tests {
         create_user.execute(&mut tx).await.unwrap();
         create_user.commit(tx).await.unwrap();
 
+        let id = get_id(&pool, email).await;
+
         let mut tx = pool.begin().await.unwrap();
-        let delete_user = DeleteUser::new(email);
+        let delete_user = DeleteUser::new(id);
         delete_user.execute(&mut tx).await.unwrap();
         assert!(delete_user.commit(tx).await.is_ok());
     }
@@ -75,7 +87,7 @@ mod tests {
     async fn delete_non_existent_user() {
         let pool = init_db().await;
         let mut tx = pool.begin().await.unwrap();
-        let delete_user = DeleteUser::new("ghost@test.com");
+        let delete_user = DeleteUser::new(u32::MAX);
         assert!(delete_user.execute(&mut tx).await.is_err());
         assert!(DeleteUser::rollback(tx).await.is_ok());
     }
@@ -98,8 +110,10 @@ mod tests {
         create.execute(&mut tx).await.unwrap();
         create.commit(tx).await.unwrap();
 
+        let id = get_id(&pool, email).await;
+
         let mut tx = pool.begin().await.unwrap();
-        DeleteUser::new(email).execute(&mut tx).await.unwrap();
+        DeleteUser::new(id).execute(&mut tx).await.unwrap();
         DeleteUser::rollback(tx).await.unwrap();
 
         assert!(
@@ -109,11 +123,6 @@ mod tests {
                 .unwrap()
         );
 
-        let mut tx = pool.begin().await.unwrap();
-        UserRepository::delete(email)
-            .execute(&mut tx)
-            .await
-            .unwrap();
-        UserRepository::delete(email).commit(tx).await.unwrap();
+        cleanup_user_by_email(&pool, email).await;
     }
 }
