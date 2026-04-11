@@ -6,8 +6,8 @@ use crate::database::{ReadOnly, Transactional};
 use argon2::PasswordHasher;
 use argon2::password_hash::{SaltString, rand_core::OsRng};
 use rocket::http::Status;
-use rocket::serde::json::Json;
 use rocket::tokio::task::JoinHandle;
+use rocket::serde::json::Json;
 use rocket::{State, post, tokio};
 use sqlx::Transaction;
 use sqlx::{MySql, Pool};
@@ -25,6 +25,7 @@ mod email_const {
     pub(super) use crate::data_definitions::{Email, EmailError, EmailSender};
     pub(super) use lettre::Address;
     pub(super) use lettre::transport::smtp::response::{Response, Severity};
+    use rocket::http::Status;
     pub(super) use rocket::tokio::time::sleep;
     use sqlx::Error as SQLError;
     pub(super) use std::num::NonZero;
@@ -46,7 +47,7 @@ mod email_const {
         email_address: Address,
         raw_email: String,
         db: Pool<MySql>,
-    ) {
+    ) -> Result<(), (Status, &'static str)> {
         let email: Email = Email::new(sender_address, email_address)
             .set_subject(SIGN_UP_SUBJECT)
             .set_html_content(SIGN_UP_HTML);
@@ -54,18 +55,21 @@ mod email_const {
         match send_email(&email_sender, email, RETRIES).await {
             Ok(Ok(_)) => {
                 info!("User signed up successfully");
+                Ok(())
             }
             Ok(Err(response)) => {
-                warn!(code = ?response.code(), "Email failed to send, but user was created");
+                warn!(code = ?response.code(), "Email failed to send, reverting signup");
                 if let Err(err) = revert_signup(&raw_email, &db).await {
                     error!(error=%err, "Failed to revert signup after email failure");
                 }
+                Err((Status::InternalServerError, "Failed to send confirmation email"))
             }
             Err(err) => {
-                error!(error = %err, "Failed to send email");
+                error!(error = %err, "Failed to send email, reverting signup");
                 if let Err(err) = revert_signup(&raw_email, &db).await {
                     error!(error=%err, "Failed to revert signup after email failure");
                 }
+                Err((Status::InternalServerError, "Failed to send confirmation email"))
             }
         }
     }
@@ -241,7 +245,7 @@ pub async fn signup(
     let from_address = sender_address.inner().clone();
     let pool = db.inner().clone();
     let raw_email = signup_request.email.to_owned();
-    tokio::spawn(handle_signup_email(sender, from_address, validated_email, raw_email, pool));
+    handle_signup_email(sender, from_address, validated_email, raw_email, pool).await?;
 
     Ok(Status::Created)
 }
