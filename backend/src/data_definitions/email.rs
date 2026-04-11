@@ -56,7 +56,12 @@ const IDLE_TIMEOUT: Duration = Duration::from_mins(IDLE_TIMEOUT_MINS as u64);
 
 pub type EmailSender = AsyncSmtpTransport<Tokio1Executor>;
 
-pub fn init_email_sender() -> Result<EmailSender, EmailError> {
+pub struct EmailSenderConfig {
+    pub sender: EmailSender,
+    pub sender_address: Address,
+}
+
+pub fn init_email_sender() -> Result<EmailSenderConfig, EmailError> {
     let host: String = env::var("MAILER_HOST").map_err(|_| {
         EmailError::InitializationError("Missing required environment variable: MAILER_HOST")
     })?;
@@ -65,6 +70,10 @@ pub fn init_email_sender() -> Result<EmailSender, EmailError> {
     })?;
     let password: String = env::var("MAILER_PASSWORD").map_err(|_| {
         EmailError::InitializationError("Missing required environment variable: MAILER_PASSWORD")
+    })?;
+
+    let sender_address: Address = user.parse().map_err(|_| {
+        EmailError::InitializationError("MAILER_USER is not a valid email address")
     })?;
 
     info!(
@@ -88,7 +97,7 @@ pub fn init_email_sender() -> Result<EmailSender, EmailError> {
 
     info!(mailer_host = %host, "SMTP connection pool ready");
 
-    Ok(email_sender)
+    Ok(EmailSenderConfig { sender: email_sender, sender_address })
 }
 
 #[derive(Clone)]
@@ -160,7 +169,7 @@ impl<'a> Email<'a> {
 mod tests {
     use super::*;
 
-    const TEST_ADDRESS: &str = "falkaurelclouddeployment@gmail.com";
+    const TEST_ADDRESS: &str = "noreply@example.com";
     #[test]
     fn valid_email_accepted() {
         assert!("user@example.com".parse::<Address>().is_ok());
@@ -200,7 +209,7 @@ mod tests {
         let result = Email::new(sender, receiver)
             .set_subject("[Test] Plain text")
             .set_text_content("This is a plain text test email.")
-            .send(&init_email_sender().unwrap())
+            .send(&init_email_sender().unwrap().sender)
             .await;
 
         result.unwrap();
@@ -214,7 +223,7 @@ mod tests {
 
         Email::new(sender, receiver)
             .set_text_content("Email with no subject set.")
-            .send(&init_email_sender().unwrap())
+            .send(&init_email_sender().unwrap().sender)
             .await
             .unwrap();
     }
@@ -228,7 +237,7 @@ mod tests {
         Email::new(sender, receiver)
             .set_subject("[Test] HTML content")
             .set_html_content(include_str!("../routes/signup_confirmation.html"))
-            .send(&init_email_sender().unwrap())
+            .send(&init_email_sender().unwrap().sender)
             .await
             .unwrap();
     }

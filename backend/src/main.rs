@@ -7,8 +7,9 @@ use backend::{
     routes::{delete_user_request, login_request, logout_request, me_request, signup_request},
 };
 
-use rocket::{Config, Rocket, get};
+use rocket::{Config, Rocket};
 use rocket_cors::{AllowedOrigins, CorsOptions};
+use std::env;
 use std::net::{IpAddr, Ipv4Addr};
 use tracing_subscriber::fmt::{format::FmtSpan, writer::MakeWriterExt};
 
@@ -16,12 +17,6 @@ use tracing_subscriber::fmt::{format::FmtSpan, writer::MakeWriterExt};
 #[get("/health")]
 fn health() -> &'static str {
     "Healthy"
-}
-
-#[tracing::instrument]
-#[get("/hi")]
-fn hi() -> String {
-    "Hello, world!".to_string()
 }
 
 #[cfg(not(feature = "export_binding"))]
@@ -72,22 +67,29 @@ async fn main() -> Result<(), rocket::Error> {
 }
 
 async fn build_rocket(server_config: Config) -> Rocket<rocket::Build> {
+    let mut allowed_origins: Vec<String> = vec!["https://localhost".to_string()];
+
+    if let Ok(origin) = env::var("CORS_ALLOWED_ORIGIN") {
+        allowed_origins.push(origin);
+    }
+
+    #[cfg(debug_assertions)]
+    allowed_origins.push("http://localhost:5173".to_string());
+
+    let allowed_refs: Vec<&str> = allowed_origins.iter().map(String::as_str).collect();
+
     let cors: rocket_cors::Cors = CorsOptions::default()
-        .allowed_origins(AllowedOrigins::some_exact(&[
-            "http://localhost:5173",
-            "https://localhost",
-        ]))
+        .allowed_origins(AllowedOrigins::some_exact(&allowed_refs))
         .allow_credentials(true)
         .to_cors()
         .expect("Failed to build CORS");
 
     let mut rocket: Rocket<rocket::Build> = rocket::build()
         .configure(server_config)
+        .mount("/", routes![health])
         .mount(
-            "/",
+            "/v1",
             routes![
-                hi,
-                health,
                 login_request,
                 logout_request,
                 signup_request,
@@ -99,7 +101,8 @@ async fn build_rocket(server_config: Config) -> Rocket<rocket::Build> {
 
     #[cfg(feature = "email")]
     {
-        rocket = rocket.manage(init_email_sender().unwrap());
+        let config = init_email_sender().unwrap();
+        rocket = rocket.manage(config.sender).manage(config.sender_address);
     }
 
     rocket = rocket.manage(init_db().await);

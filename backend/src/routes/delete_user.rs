@@ -6,9 +6,9 @@ use rocket::{State, delete, http::Status};
 use sqlx::{MySql, Pool, Transaction};
 use tracing::{error, info, warn};
 
-#[delete("/delete/user/<id>")]
+#[delete("/users/<id>")]
 pub async fn delete(
-    id: u32,
+    id: i32,
     auth: Auth,
     db: &State<Pool<MySql>>,
 ) -> Result<Status, (Status, &'static str)> {
@@ -49,7 +49,7 @@ pub async fn delete(
     }
 }
 
-async fn delete_user(id: u32, db: &Pool<MySql>) -> Result<Status, (Status, &'static str)> {
+async fn delete_user(id: i32, db: &Pool<MySql>) -> Result<Status, (Status, &'static str)> {
     // Start transaction
     let mut transaction: Transaction<MySql> = match db.begin().await {
         Ok(tx) => tx,
@@ -71,6 +71,9 @@ async fn delete_user(id: u32, db: &Pool<MySql>) -> Result<Status, (Status, &'sta
     // Execute delete
     if let Err(err) = delete_user.execute(&mut transaction).await {
         error!(target_user=%id, error=%err, "Failed to execute user deletion query.");
+        if let Err(rb_err) = transaction.rollback().await {
+            error!(target_user=%id, error=%rb_err, "Failed to roll back transaction after deletion error.");
+        }
         return Err((
             Status::InternalServerError,
             "Failed to delete user. Please try again later.",
@@ -78,7 +81,7 @@ async fn delete_user(id: u32, db: &Pool<MySql>) -> Result<Status, (Status, &'sta
     }
 
     // Commit transaction
-    if let Err(err) = delete_user.commit(transaction).await {
+    if let Err(err) = transaction.commit().await {
         error!(target_user=%id, error=%err, "Failed to commit transaction for user deletion.");
         return Err((
             Status::InternalServerError,
@@ -88,7 +91,7 @@ async fn delete_user(id: u32, db: &Pool<MySql>) -> Result<Status, (Status, &'sta
 
     info!(target_user=%id, "User successfully deleted.");
 
-    Ok(Status::Ok)
+    Ok(Status::NoContent)
 }
 
 #[cfg(test)]
@@ -117,14 +120,14 @@ mod tests {
             .await;
     }
 
-    async fn get_id(client: &Client, email: &str) -> u32 {
+    async fn get_id(client: &Client, email: &str) -> i32 {
         let db = client.rocket().state::<Pool<MySql>>().unwrap();
         UserRepository::get_login_view(email)
             .read(db)
             .await
             .unwrap()
             .unwrap()
-            .id as u32
+            .id
     }
 
     #[tokio::test]
@@ -138,12 +141,12 @@ mod tests {
         let token = JWT::create(id, TOKEN_LIFETIME).unwrap();
 
         let response = client
-            .delete(format!("/delete/user/{}", id))
+            .delete(format!("/users/{}", id))
             .cookie(Cookie::new("jwt", token))
             .dispatch()
             .await;
 
-        assert_eq!(response.status(), HttpStatus::Ok);
+        assert_eq!(response.status(), HttpStatus::NoContent);
     }
 
     #[tokio::test]
@@ -151,7 +154,7 @@ mod tests {
     async fn returns_401_without_jwt() {
         let client = build_test_client(&routes![delete_user_request]).await;
 
-        let response = client.delete("/delete/user/1").dispatch().await;
+        let response = client.delete("/users/1").dispatch().await;
 
         assert_eq!(response.status(), HttpStatus::Unauthorized);
     }
@@ -171,7 +174,7 @@ mod tests {
         let token = JWT::create(attacker_id, TOKEN_LIFETIME).unwrap();
 
         let response = client
-            .delete(format!("/delete/user/{}", victim_id))
+            .delete(format!("/users/{}", victim_id))
             .cookie(Cookie::new("jwt", token))
             .dispatch()
             .await;
@@ -185,6 +188,40 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires database"]
+    async fn admin_can_delete_other_user() {
+        let client = build_test_client(&routes![signup_request, delete_user_request]).await;
+        let admin_email = "admin_del@example.com";
+        let target_email = "target_del@example.com";
+
+        signup(&client, "Admin", admin_email, "password123").await;
+        signup(&client, "Target", target_email, "password123").await;
+
+        // Promote admin directly via SQL since the signup route always creates non-admin users
+        let db = client.rocket().state::<Pool<MySql>>().unwrap();
+        sqlx::query("UPDATE users SET is_admin = TRUE WHERE email = ?")
+            .bind(admin_email)
+            .execute(db)
+            .await
+            .unwrap();
+
+        let admin_id = get_id(&client, admin_email).await;
+        let target_id = get_id(&client, target_email).await;
+        let token = JWT::create(admin_id, TOKEN_LIFETIME).unwrap();
+
+        let response = client
+            .delete(format!("/users/{}", target_id))
+            .cookie(Cookie::new("jwt", token))
+            .dispatch()
+            .await;
+
+        assert_eq!(response.status(), HttpStatus::NoContent);
+
+        cleanup_user_by_email(db, admin_email).await;
+        // target user was deleted by the request, no cleanup needed
+    }
+
+    #[tokio::test]
+    #[ignore = "requires database"]
     async fn returns_401_for_nonexistent_jwt_user() {
         let client = build_test_client(&routes![signup_request, delete_user_request]).await;
         let victim_email = "victim2@example.com";
@@ -193,10 +230,10 @@ mod tests {
         let victim_id = get_id(&client, victim_email).await;
 
         // JWT references a user that does not exist in the DB
-        let token = JWT::create(u32::MAX, TOKEN_LIFETIME).unwrap();
+        let token = JWT::create(i32::MAX, TOKEN_LIFETIME).unwrap();
 
         let response = client
-            .delete(format!("/delete/user/{}", victim_id))
+            .delete(format!("/users/{}", victim_id))
             .cookie(Cookie::new("jwt", token))
             .dispatch()
             .await;

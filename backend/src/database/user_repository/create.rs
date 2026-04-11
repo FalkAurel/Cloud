@@ -48,6 +48,7 @@ mod tests {
     };
 
     #[tokio::test]
+    #[ignore = "requires database"]
     async fn create_user() {
         let name: FixedSizedStr<MAX_UTF8_BYTES> = FixedSizedStr::new_from_str("test").unwrap();
         let email: FixedSizedStr<MAX_UTF8_BYTES> = FixedSizedStr::new_from_str("test").unwrap();
@@ -60,10 +61,11 @@ mod tests {
         let mut tx = pool.begin().await.unwrap();
         let create_user = CreateUser::new(&user, &hashed_pw);
         create_user.execute(&mut tx).await.unwrap();
-        assert!(CreateUser::rollback(tx).await.is_ok());
+        assert!(tx.rollback().await.is_ok());
     }
 
     #[tokio::test]
+    #[ignore = "requires database"]
     async fn rollback_does_not_persist_user() {
         let email = "create_rollback@test.com";
         let fix_sized_str: FixedSizedStr<MAX_UTF8_BYTES> =
@@ -75,11 +77,9 @@ mod tests {
 
         let pool = init_db().await;
         let mut tx = pool.begin().await.unwrap();
-        CreateUser::new(&user, &hashed_pw)
-            .execute(&mut tx)
-            .await
-            .unwrap();
-        CreateUser::rollback(tx).await.unwrap();
+        let create_user = CreateUser::new(&user, &hashed_pw);
+        create_user.execute(&mut tx).await.unwrap();
+        tx.rollback().await.unwrap();
 
         assert!(
             !UserRepository::email_exists(email)

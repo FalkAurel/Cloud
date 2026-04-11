@@ -18,6 +18,8 @@ impl<const MAX_LENGTH: usize> fmt::Display for TooLong<MAX_LENGTH> {
     }
 }
 
+impl<const MAX_LENGTH: usize> std::error::Error for TooLong<MAX_LENGTH> {}
+
 impl<const BYTES: usize> FixedSizedStr<BYTES> {
     pub(crate) fn new_from_str(value: &str) -> Result<Self, TooLong<BYTES>> {
         if value.len() > BYTES {

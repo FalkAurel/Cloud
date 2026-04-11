@@ -208,7 +208,7 @@ const deleting = ref(false)
 
 async function deleteAccount() {
   deleting.value = true
-  const deleteEndpoint = `${import.meta.env.VITE_API_BASE}/delete/user/${profile.value.id}`
+  const deleteEndpoint = `${import.meta.env.VITE_API_BASE}/users/${profile.value.id}`
   try {
     const res = await fetch(deleteEndpoint, {
       method: 'DELETE',
@@ -253,8 +253,7 @@ async function fetchProfile() {
       return
     }
     profile.value = await res.json()
-    console.log(profile.value)
-    memberSince = new Date(profile.value.created_at).toLocaleDateString('de-DE', {
+    memberSince.value = new Date(profile.value.created_at).toLocaleDateString('de-DE', {
       day: '2-digit',
       month: 'long',
       year: 'numeric',
@@ -287,7 +286,7 @@ const initials = computed(() =>
     .slice(0, 2) || '?'
 )
 
-let memberSince: string = ""
+let memberSince = ref("")
 
 const storageSegments = computed(() => [
   { label: 'Dokumente', bytes: 600_000_000, percent: 30, color: '#003580' },

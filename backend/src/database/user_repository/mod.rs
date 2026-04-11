@@ -24,7 +24,7 @@ impl UserRepository {
         CreateUser::new(user, hashed_pw)
     }
 
-    pub fn delete(user_id: u32) -> impl Transactional<Success = (), Error = sqlx::Error> {
+    pub fn delete(user_id: i32) -> impl Transactional<Success = (), Error = sqlx::Error> {
         DeleteUser::new(user_id)
     }
 
@@ -39,7 +39,7 @@ impl UserRepository {
     }
 
     pub fn get_user_info(
-        user_id: u32,
+        user_id: i32,
     ) -> impl ReadOnly<Success = Option<StandardUserView>, Error = sqlx::Error> {
         GetUserInfo::new(user_id)
     }

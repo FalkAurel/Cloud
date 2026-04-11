@@ -36,23 +36,6 @@ pub(crate) trait Transactional {
         &self,
         tx: &'t mut Transaction<'_, MySql>,
     ) -> impl Future<Output = Result<Self::Success, Self::Error>> + Send;
-
-    fn commit(
-        self,
-        tx: Transaction<'_, MySql>,
-    ) -> impl Future<Output = Result<(), sqlx::Error>> + Send
-    where
-        Self: Sized,
-    {
-        tx.commit()
-    }
-
-    fn rollback(tx: Transaction<'_, MySql>) -> impl Future<Output = Result<(), sqlx::Error>> + Send
-    where
-        Self: Sized,
-    {
-        tx.rollback()
-    }
 }
 
 pub(crate) mod user_repository;

@@ -65,27 +65,32 @@ async function signup() {
     name: username.value
   }
 
-  const response: Response = await fetch(signup_url, {
-    method: "POST",
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'text/plain'
-    },
-    body: JSON.stringify(sign_up_request)
-  })
+  try {
+    const response: Response = await fetch(signup_url, {
+      method: "POST",
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/plain'
+      },
+      body: JSON.stringify(sign_up_request)
+    })
 
-  const message = await response.text()
+    const message = await response.text()
 
-  if (response.ok) {
-    notificationMessage.value = message || 'Signup successful!'
-    notificationType.value = 'success'
-    router.push("/login")
-  } else {
-    notificationMessage.value = message || 'Signup failed'
+    if (response.ok) {
+      notificationMessage.value = message || 'Signup successful!'
+      notificationType.value = 'success'
+      router.push("/login")
+    } else {
+      notificationMessage.value = message || 'Signup failed'
+      notificationType.value = 'error'
+    }
+  } catch {
+    notificationMessage.value = 'Network error. Please try again.'
     notificationType.value = 'error'
+  } finally {
+    showNotification.value = true
   }
-
-  showNotification.value = true
 }
 </script>
 

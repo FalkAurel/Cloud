@@ -54,7 +54,7 @@ const items = computed<SidebarItem[]>(() => {
     { name: 'settings', label: 'Settings', route: '/settings', icon: SettingsIcon },
   ]
 
-  if (!authStore.user?.is_admin) {
+  if (authStore.user?.is_admin) {
     baseItems.push({ name: 'admin', label: 'Admin', route: '/admin', icon: AdminIcon })
   }
 
