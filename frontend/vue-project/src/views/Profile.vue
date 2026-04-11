@@ -143,10 +143,27 @@
                 <span class="action-icon">→</span>
                 <span>Abmelden</span>
               </button>
+              <button class="action-btn action-btn-danger" @click="showDeleteModal = true">
+                <span class="action-icon">✕</span>
+                <span>Konto löschen</span>
+              </button>
             </div>
           </div>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal = false">
+    <div class="modal">
+      <h3 class="modal-title">Konto löschen</h3>
+      <p class="modal-body">Möchtest du dein Konto wirklich dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden.</p>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-cancel" @click="showDeleteModal = false">Abbrechen</button>
+        <button class="modal-btn modal-btn-confirm" :disabled="deleting" @click="deleteAccount">
+          {{ deleting ? 'Wird gelöscht…' : 'Endgültig löschen' }}
+        </button>
       </div>
     </div>
   </div>
@@ -185,6 +202,34 @@ const showError = ref(false)
 
 const meEndpoint: string = `${import.meta.env.VITE_API_BASE}/me`;
 const logOutEndpoint: string = `${import.meta.env.VITE_API_BASE}/logout`;
+
+const showDeleteModal = ref(false)
+const deleting = ref(false)
+
+async function deleteAccount() {
+  deleting.value = true
+  const deleteEndpoint = `${import.meta.env.VITE_API_BASE}/delete/user/${profile.value.id}`
+  try {
+    const res = await fetch(deleteEndpoint, {
+      method: 'DELETE',
+      credentials: 'include',
+    })
+    if (!res.ok) {
+      error.value = 'Konto konnte nicht gelöscht werden. Bitte erneut versuchen.'
+      showError.value = true
+      showDeleteModal.value = false
+      return
+    }
+    authStore.logout()
+    router.push('/login')
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : 'Unbekannter Fehler'
+    showError.value = true
+    showDeleteModal.value = false
+  } finally {
+    deleting.value = false
+  }
+}
 
 async function fetchProfile() {
   loading.value = true
@@ -628,5 +673,79 @@ function logout() {
 .action-btn-danger:hover {
   background: #fef2f2;
   border-color: #f5b7b1;
+}
+
+/* ── Delete modal ───────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: white;
+  border-radius: 12px;
+  padding: 28px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 8px 32px rgba(0, 53, 128, 0.18);
+}
+
+.modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #1a2b4b;
+  margin: 0 0 12px;
+}
+
+.modal-body {
+  font-size: 14px;
+  color: #6b7a90;
+  line-height: 1.5;
+  margin: 0 0 24px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.modal-btn {
+  padding: 9px 18px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.modal-btn-cancel {
+  background: #f0f4f9;
+  border-color: #dde3ed;
+  color: #1a2b4b;
+}
+
+.modal-btn-cancel:hover {
+  background: #e6ecf5;
+}
+
+.modal-btn-confirm {
+  background: #c0392b;
+  color: white;
+}
+
+.modal-btn-confirm:hover:not(:disabled) {
+  background: #a93226;
+}
+
+.modal-btn-confirm:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>
