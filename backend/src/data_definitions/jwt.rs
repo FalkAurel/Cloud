@@ -1,3 +1,26 @@
+//! # JWT authentication
+//!
+//! Tokens are signed with HMAC-SHA256 (`HS256`) and stored in `HttpOnly` cookies.
+//! The signing algorithm is locked at decode time and never read from the token
+//! header, preventing algorithm-confusion attacks.
+//!
+//! ## Why `exp` is in milliseconds
+//!
+//! [`JWT::exp`] stores the expiry as **milliseconds since the Unix epoch**, not
+//! the seconds that the JWT spec (RFC 7519) requires.  This lets the application
+//! use sub-second lifetimes in tests without floating-point arithmetic.
+//!
+//! Consequences to be aware of:
+//! - [`jsonwebtoken`]'s built-in `exp` validator effectively becomes a no-op
+//!   because a millisecond timestamp (~1.7 × 10¹²) is always greater than the
+//!   current Unix timestamp in seconds (~1.7 × 10⁹).  Expiry enforcement is
+//!   handled entirely by the manual check in [`JWT::decode`].
+//! - External tools (e.g. jwt.io) will display the expiry as a date far in the
+//!   future.  This is expected and not a bug.
+//!
+//! If you change this to seconds, update [`JWT::create`], [`JWT::decode`], and
+//! the tests in this module.
+
 use std::{
     env,
     fmt::Debug,
@@ -7,7 +30,7 @@ use std::{
 
 use chrono::DateTime;
 use jsonwebtoken::{
-    Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, decode_header, encode,
+    Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode,
     errors::Error as JWTError,
 };
 use rocket::{
@@ -23,18 +46,16 @@ static JWT_SECRET: LazyLock<EncodingKey> = LazyLock::new(|| {
 
 #[derive(Serialize, Deserialize)]
 pub struct JWT {
-    pub(crate) exp: u64,     // in milis
-    pub(crate) user_id: u32, // 16K users should be fine for now
+    pub(crate) exp: u64,      // in millis — see module doc for rationale
+    pub(crate) user_id: i32,
 }
 
 impl Debug for JWT {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "UserID: {}, Expiration: {}",
-            self.user_id,
-            DateTime::from_timestamp_millis(self.exp as i64).unwrap_or_else(|| DateTime::default()) // ToDo: is this really the way to handle the case when we face an invalid expiration date?
-        )
+        let expiration = DateTime::from_timestamp_millis(self.exp as i64)
+            .map(|dt| dt.to_string())
+            .unwrap_or_else(|| "<invalid timestamp>".to_string());
+        write!(f, "UserID: {}, Expiration: {}", self.user_id, expiration)
     }
 }
 
@@ -45,7 +66,7 @@ pub enum DecodeError {
 }
 
 impl JWT {
-    pub fn create(user_id: u32, duration: Duration) -> Result<String, JWTError> {
+    pub fn create(user_id: i32, duration: Duration) -> Result<String, JWTError> {
         let now: Duration = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Should never fail");
@@ -59,13 +80,10 @@ impl JWT {
     }
 
     fn decode(cookie_claim: &str) -> Result<JWT, DecodeError> {
-        let header: Header =
-            decode_header(cookie_claim).map_err(|err| DecodeError::JWTError(err))?;
-
         match decode::<JWT>(
             cookie_claim,
             &DecodingKey::from_secret(JWT_SECRET.inner()),
-            &Validation::new(header.alg),
+            &Validation::new(Algorithm::HS256),
         ) {
             Ok(data) => {
                 let now: Duration = SystemTime::now()
@@ -140,6 +158,7 @@ mod tests {
     use crate::data_definitions::JWT;
 
     #[test]
+    #[ignore = "requires JWT_SECRET env var"]
     fn create_jwt() {
         let jwt: String = JWT::create(0, Duration::from_mins(10)).unwrap();
         let JWT { user_id, .. } = JWT::decode(&jwt).unwrap();
@@ -147,6 +166,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires JWT_SECRET env var"]
     fn expired_jwt() {
         let jwt: String = JWT::create(0, Duration::from_micros(100)).unwrap();
         sleep(Duration::from_millis(1));

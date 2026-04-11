@@ -5,8 +5,8 @@ use crate::database::Transactional;
 pub(super) struct DeleteUser(i32);
 
 impl DeleteUser {
-    pub const fn new(user_id: u32) -> Self {
-        Self(user_id as i32)
+    pub const fn new(user_id: i32) -> Self {
+        Self(user_id)
     }
 }
 
@@ -48,16 +48,17 @@ mod tests {
         test_harness_setup::cleanup_user_by_email,
     };
 
-    async fn get_id(pool: &sqlx::Pool<sqlx::MySql>, email: &str) -> u32 {
+    async fn get_id(pool: &sqlx::Pool<sqlx::MySql>, email: &str) -> i32 {
         UserRepository::get_login_view(email)
             .read(pool)
             .await
             .unwrap()
             .unwrap()
-            .id as u32
+            .id
     }
 
     #[tokio::test]
+    #[ignore = "requires database"]
     async fn delete_user() {
         let email: &str = "delete@test.com";
         let name: FixedSizedStr<MAX_UTF8_BYTES> = FixedSizedStr::new_from_str("test").unwrap();
@@ -73,26 +74,28 @@ mod tests {
         let mut tx = pool.begin().await.unwrap();
         let create_user = CreateUser::new(&user, &hashed_pw);
         create_user.execute(&mut tx).await.unwrap();
-        create_user.commit(tx).await.unwrap();
+        tx.commit().await.unwrap();
 
         let id = get_id(&pool, email).await;
 
         let mut tx = pool.begin().await.unwrap();
         let delete_user = DeleteUser::new(id);
-        delete_user.execute(&mut tx).await.unwrap();
-        assert!(delete_user.commit(tx).await.is_ok());
+        assert!(delete_user.execute(&mut tx).await.is_ok());
+        assert!(tx.commit().await.is_ok());
     }
 
     #[tokio::test]
+    #[ignore = "requires database"]
     async fn delete_non_existent_user() {
         let pool = init_db().await;
         let mut tx = pool.begin().await.unwrap();
-        let delete_user = DeleteUser::new(u32::MAX);
+        let delete_user = DeleteUser::new(i32::MAX);
         assert!(delete_user.execute(&mut tx).await.is_err());
-        assert!(DeleteUser::rollback(tx).await.is_ok());
+        assert!(tx.rollback().await.is_ok());
     }
 
     #[tokio::test]
+    #[ignore = "requires database"]
     async fn rollback_preserves_user() {
         let email: &str = "delete_rollback@test.com";
         let name: FixedSizedStr<MAX_UTF8_BYTES> = FixedSizedStr::new_from_str("test").unwrap();
@@ -108,13 +111,14 @@ mod tests {
         let mut tx = pool.begin().await.unwrap();
         let create = CreateUser::new(&user, &hashed_pw);
         create.execute(&mut tx).await.unwrap();
-        create.commit(tx).await.unwrap();
+        tx.commit().await.unwrap();
 
         let id = get_id(&pool, email).await;
 
         let mut tx = pool.begin().await.unwrap();
-        DeleteUser::new(id).execute(&mut tx).await.unwrap();
-        DeleteUser::rollback(tx).await.unwrap();
+        let delete_user = DeleteUser::new(id);
+        delete_user.execute(&mut tx).await.unwrap();
+        tx.rollback().await.unwrap();
 
         assert!(
             UserRepository::email_exists(email)

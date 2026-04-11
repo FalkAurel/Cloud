@@ -13,7 +13,7 @@ pub mod routes;
 pub use database::init_db;
 
 #[cfg(feature = "email")]
-pub use data_definitions::init_email_sender;
+pub use data_definitions::{init_email_sender, EmailSenderConfig};
 
 pub(crate) static ARGON_2: LazyLock<Argon2> = LazyLock::new(|| Argon2::default());
 pub(crate) const TOKEN_LIFETIME: Duration = Duration::from_mins(10);
@@ -39,10 +39,12 @@ pub(crate) mod test_harness_setup {
 
             use crate::{data_definitions::init_email_sender, init_db};
 
+            let config = init_email_sender().unwrap();
             let rocket = Rocket::build()
                 .mount("/", routes)
                 .manage(init_db().await)
-                .manage(init_email_sender().unwrap());
+                .manage(config.sender)
+                .manage(config.sender_address);
             Client::tracked(rocket).await.unwrap()
         }
 
@@ -59,15 +61,15 @@ pub(crate) mod test_harness_setup {
     pub(crate) async fn cleanup_user_by_email(pool: &Pool<MySql>, email: &str) {
         use crate::database::{ReadOnly, Transactional, user_repository::UserRepository};
 
-        let id: u32 = UserRepository::get_login_view(email)
+        let id: i32 = UserRepository::get_login_view(email)
             .read(pool)
             .await
             .unwrap()
             .unwrap()
-            .id as u32;
+            .id;
         let mut tx: sqlx::Transaction<'_, MySql> = pool.begin().await.unwrap();
         let delete = UserRepository::delete(id);
         delete.execute(&mut tx).await.unwrap();
-        delete.commit(tx).await.unwrap();
+        tx.commit().await.unwrap();
     }
 }

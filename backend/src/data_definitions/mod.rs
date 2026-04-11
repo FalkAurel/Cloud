@@ -5,7 +5,7 @@ mod email;
 pub(crate) use email::Email;
 
 #[cfg(feature = "email")]
-pub use email::{EmailError, EmailSender, init_email_sender};
+pub use email::{EmailError, EmailSender, EmailSenderConfig, init_email_sender};
 
 mod fixed_len_str;
 mod jwt;

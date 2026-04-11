@@ -23,7 +23,7 @@ pub async fn login(
     connection: &State<Pool<MySql>>,
     cookies: &CookieJar<'_>,
 ) -> Result<Status, (Status, &'static str)> {
-    let span: tracing::Span = info_span!("login", email = %login_request.email);
+    let span: tracing::Span = info_span!("login");
     async move {
         let UserLoginView { id, password_hash } =
             UserRepository::get_login_view(login_request.email)
@@ -52,7 +52,7 @@ pub async fn login(
             };
 
             match ARGON_2.verify_password(password.as_bytes(), &hash) {
-                Ok(_) => match JWT::create(id as u32, TOKEN_LIFETIME) {
+                Ok(_) => match JWT::create(id, TOKEN_LIFETIME) {
                     Ok(token) => {
                         info!(id, "Login successful");
                         Some(token)

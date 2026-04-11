@@ -13,7 +13,7 @@ pub async fn me(
     jwt: Auth,
     db: &State<Pool<MySql>>,
 ) -> Result<(Status, Json<StandardUserView>), (Status, &'static str)> {
-    let user_id: u32 = jwt.0.user_id;
+    let user_id: i32 = jwt.0.user_id;
 
     info!(user_id = user_id, "Fetching current user profile");
 
@@ -76,7 +76,7 @@ mod tests {
             .await;
 
         let user_id: i32 = get_user_id(&client, email).await;
-        let token: String = JWT::create(user_id as u32, TOKEN_LIFETIME).unwrap();
+        let token: String = JWT::create(user_id, TOKEN_LIFETIME).unwrap();
 
         let response = client
             .get("/me")
@@ -124,7 +124,7 @@ mod tests {
     async fn me_returns_401_for_nonexistent_user() {
         let client = build_test_client(&routes![me]).await;
         // Use a user_id that does not exist in the database
-        let token = JWT::create(u32::MAX, TOKEN_LIFETIME).unwrap();
+        let token = JWT::create(i32::MAX, TOKEN_LIFETIME).unwrap();
 
         let response = client
             .get("/me")

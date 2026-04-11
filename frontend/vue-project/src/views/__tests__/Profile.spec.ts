@@ -111,7 +111,7 @@ describe('Profile.vue', () => {
   })
 
   describe('deleteAccount', () => {
-    it('calls DELETE /delete/user/:id on confirm', async () => {
+    it('calls DELETE /users/:id on confirm', async () => {
       const fetchMock = vi.fn()
         .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(profilePayload) }) // /me
         .mockResolvedValueOnce({ ok: true }) // DELETE
@@ -127,7 +127,7 @@ describe('Profile.vue', () => {
       const deleteCall = fetchMock.mock.calls.find(
         (call) => {
           const [url, opts] = call as [string, RequestInit]
-          return opts?.method === 'DELETE' && url.includes('/delete/user/42')
+          return opts?.method === 'DELETE' && url.includes('/users/42')
         },
       )
       expect(deleteCall).toBeDefined()

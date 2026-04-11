@@ -48,7 +48,7 @@ mod tests {
         let mut tx: Transaction<MySql> = pool.begin().await.unwrap();
         let create = UserRepository::create(&user, &hashed_pw);
         create.execute(&mut tx).await.unwrap();
-        create.commit(tx).await.unwrap();
+        tx.commit().await.unwrap();
     }
 
     async fn cleanup(pool: &Pool<MySql>, email: &str) {
@@ -56,6 +56,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires database"]
     async fn returns_true_for_existing_email() {
         let pool = init_db().await;
         let email = "exists@test.com";
@@ -65,6 +66,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires database"]
     async fn returns_false_for_nonexistent_email() {
         let pool: Pool<MySql> = init_db().await;
         assert!(
