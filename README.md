@@ -95,15 +95,18 @@ MAILER_PASSWORD=
 
 ## API Endpoints
 
+All application routes are versioned under `/v1`. The `/health` endpoint is unversioned.
+
 | Method | Path | Description | Auth required |
 | --- | --- | --- | --- |
 | `GET` | `/health` | Health check | No |
-| `POST` | `/signup` | Register a new user, sends confirmation email | No |
-| `POST` | `/login` | Authenticate, sets JWT cookie | No |
-| `POST` | `/logout` | Clear JWT cookie | Yes |
-| `GET` | `/me` | Get current user profile | Yes |
+| `POST` | `/v1/signup` | Register a new user, sends confirmation email | No |
+| `POST` | `/v1/login` | Authenticate, sets JWT cookie | No |
+| `POST` | `/v1/logout` | Clear JWT cookie | Yes |
+| `GET` | `/v1/me` | Get current user profile | Yes |
+| `DELETE` | `/v1/users/:id` | Delete a user account | Yes |
 
-### POST /signup
+### POST /v1/signup
 
 ```json
 {
@@ -115,7 +118,7 @@ MAILER_PASSWORD=
 
 Responses: `201 Created`, `400 Bad Request`, `409 Conflict`
 
-### POST /login
+### POST /v1/login
 
 ```json
 {
@@ -126,13 +129,13 @@ Responses: `201 Created`, `400 Bad Request`, `409 Conflict`
 
 Responses: `200 OK` (sets JWT cookie), `401 Unauthorized`
 
-### POST /logout
+### POST /v1/logout
 
 Requires a valid `jwt` cookie. Clears the cookie on success.
 
 Responses: `200 OK`, `401 Unauthorized`
 
-### GET /me
+### GET /v1/me
 
 Requires a valid `jwt` cookie. Returns the authenticated user's profile.
 
@@ -145,6 +148,35 @@ Requires a valid `jwt` cookie. Returns the authenticated user's profile.
 ```
 
 Responses: `200 OK`, `401 Unauthorized`
+
+### DELETE /v1/users/:id
+
+Requires a valid `jwt` cookie. A user may delete their own account. Admins may delete any account.
+
+Responses: `204 No Content`, `401 Unauthorized`, `500 Internal Server Error`
+
+## Database Schema
+
+### `users`
+
+| Column | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| `id` | `INT` | `PRIMARY KEY AUTO_INCREMENT` | Unique user identifier |
+| `name` | `VARCHAR(255)` | `NOT NULL` | Display name |
+| `password` | `VARCHAR(255)` | `NOT NULL` | Argon2 password hash (salt embedded in hash string) |
+| `email` | `VARCHAR(255)` | `NOT NULL UNIQUE` | Email address, used for login |
+| `is_admin` | `BOOLEAN` | `DEFAULT FALSE` | Admin flag; grants permission to delete other users |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Account creation time |
+| `modified_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP` | Last modification time |
+
+**Notes:**
+
+- Passwords are hashed with [Argon2id](https://en.wikipedia.org/wiki/Argon2) via the `argon2` crate. The salt is generated per-user and embedded in the hash string — no separate salt column is needed.
+- There is no seed admin account. To promote the first admin after initial setup, sign up via the API then run:
+
+  ```sql
+  UPDATE users SET is_admin = TRUE WHERE email = 'your@email.com';
+  ```
 
 ## Frontend Routes
 
