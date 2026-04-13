@@ -48,10 +48,14 @@ jobs:
           sudo apt-get install -y mariadb-client
           mysql -h 127.0.0.1 -u testuser -ptestpassword testdb < infra/init.sql
 
+      - name: Generate test secrets
+        id: secrets
+        run: echo "jwt_secret=$(openssl rand -hex 32)" >> $GITHUB_OUTPUT
+
       - name: Run backend tests (including ignored integration tests)
         working-directory: backend
         env:
-          JWT_SECRET: ci-test-secret
+          JWT_SECRET: ${{ steps.secrets.outputs.jwt_secret }}
           MARIADB_HOST: 127.0.0.1
           MARIADB_USER: testuser
           MARIADB_PASSWORD: testpassword

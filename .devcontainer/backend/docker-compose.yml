@@ -3,7 +3,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: sleep infinity   # Keep container running
     volumes:
       - ../../backend/src:/workspace/src
       - ../../backend/Cargo.toml:/workspace/Cargo.toml
@@ -21,24 +20,23 @@ services:
     image: mariadb:12.2-noble
     restart: unless-stopped
     env_file: ../../.env
-    networks:
-      - backend-network
     healthcheck:
       test: ["CMD-SHELL", "mariadb-admin ping -uroot -p$$MARIADB_ROOT_PASSWORD"]
       interval: 10s
       retries: 5
-    stdin_open: true 
+    stdin_open: true
     tty: true
     volumes:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - backend-network
+
   minio:
     image: minio/minio
     env_file:
       - ../../.env
     command: server /data --console-address ":9001"
     restart: unless-stopped
-    networks:
-      - backend-network
     ports:
       - "9001:9001"
     healthcheck:
@@ -47,6 +45,8 @@ services:
       retries: 5
       start_period: 5s
       timeout: 3s
+    networks:
+      - backend-network
 
 networks:
   backend-network:

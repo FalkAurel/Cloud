@@ -39,8 +39,18 @@ use rocket::{
 };
 use serde::{Deserialize, Serialize};
 
+/// Minimum number of bytes required for the JWT signing secret.
+/// 32 bytes = 256 bits — the minimum recommended for HMAC-SHA256.
+const JWT_SECRET_MIN_BYTES: usize = 32;
+
 static JWT_SECRET: LazyLock<EncodingKey> = LazyLock::new(|| {
     let secret: String = env::var("JWT_SECRET").expect("JWT_SECRET must be set");
+    assert!(
+        secret.len() >= JWT_SECRET_MIN_BYTES,
+        "JWT_SECRET must be at least {JWT_SECRET_MIN_BYTES} bytes (got {}). \
+         Generate one with: openssl rand -hex 32",
+        secret.len()
+    );
     EncodingKey::from_secret(secret.as_bytes())
 });
 
@@ -80,10 +90,17 @@ impl JWT {
     }
 
     fn decode(cookie_claim: &str) -> Result<JWT, DecodeError> {
+        // Disable the library's built-in exp check: our `exp` is in milliseconds
+        // (see module doc), so the library would never reject a token since a
+        // millisecond timestamp is always >> the current Unix timestamp in seconds.
+        // Expiry is enforced manually below.
+        let mut validation: Validation = Validation::new(Algorithm::HS256);
+        validation.validate_exp = false;
+
         match decode::<JWT>(
             cookie_claim,
             &DecodingKey::from_secret(JWT_SECRET.inner()),
-            &Validation::new(Algorithm::HS256),
+            &validation,
         ) {
             Ok(data) => {
                 let now: Duration = SystemTime::now()

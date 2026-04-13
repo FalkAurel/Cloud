@@ -9,6 +9,7 @@ pub mod data_definitions;
 #[cfg(not(feature = "export_binding"))]
 pub(crate) mod data_definitions;
 pub(crate) mod database;
+pub(crate) mod object_storage;
 pub mod routes;
 pub use database::init_db;
 
