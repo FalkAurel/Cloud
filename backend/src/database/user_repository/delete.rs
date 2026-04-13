@@ -2,7 +2,7 @@ use sqlx::{Error, MySql, Transaction};
 
 use crate::database::Transactional;
 
-pub(super) struct DeleteUser(i32);
+pub(crate) struct DeleteUser(i32);
 
 impl DeleteUser {
     pub const fn new(user_id: i32) -> Self {
