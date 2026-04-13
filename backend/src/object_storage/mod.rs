@@ -18,5 +18,3 @@ pub (crate) struct ObjectID(UUID);
 pub (crate) trait ObjectIdentifier {
     fn get_id(&self) -> ObjectID;
 }
-
-mod s3;
