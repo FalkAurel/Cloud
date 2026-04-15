@@ -72,9 +72,9 @@ pub fn init_email_sender() -> Result<EmailSenderConfig, EmailError> {
         EmailError::InitializationError("Missing required environment variable: MAILER_PASSWORD")
     })?;
 
-    let sender_address: Address = user.parse().map_err(|_| {
-        EmailError::InitializationError("MAILER_USER is not a valid email address")
-    })?;
+    let sender_address: Address = user
+        .parse()
+        .map_err(|_| EmailError::InitializationError("MAILER_USER is not a valid email address"))?;
 
     info!(
         mailer_host = %host,
@@ -97,7 +97,10 @@ pub fn init_email_sender() -> Result<EmailSenderConfig, EmailError> {
 
     info!(mailer_host = %host, "SMTP connection pool ready");
 
-    Ok(EmailSenderConfig { sender: email_sender, sender_address })
+    Ok(EmailSenderConfig {
+        sender: email_sender,
+        sender_address,
+    })
 }
 
 #[derive(Clone)]

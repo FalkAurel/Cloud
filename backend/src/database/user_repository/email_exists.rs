@@ -41,10 +41,13 @@ mod tests {
     use super::EmailExists;
 
     async fn setup(pool: &Pool<MySql>, email: &str) {
-        let name: FixedSizedStr<MAX_UTF8_BYTES> = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str("test").unwrap();
-        let email_str: FixedSizedStr<MAX_UTF8_BYTES> = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str(email).unwrap();
+        let name: FixedSizedStr<MAX_UTF8_BYTES> =
+            FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str("test").unwrap();
+        let email_str: FixedSizedStr<MAX_UTF8_BYTES> =
+            FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str(email).unwrap();
         let user: UserCreationView = UserCreationView::new(&name, &email_str);
-        let hashed_pw: FixedSizedStr<MAX_UTF8_BYTES> = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str("test_password").unwrap();
+        let hashed_pw: FixedSizedStr<MAX_UTF8_BYTES> =
+            FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str("test_password").unwrap();
         let mut tx: Transaction<MySql> = pool.begin().await.unwrap();
         let create = UserRepository::create(&user, &hashed_pw);
         create.execute(&mut tx).await.unwrap();
