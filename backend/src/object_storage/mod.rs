@@ -16,7 +16,8 @@ pub trait Storage: Send + Sync {
 
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq)]
-pub struct ObjectID(Uuid);
+pub (crate) struct ObjectID(UUID);
 
-mod s3;
-pub use s3::S3StorageDevice;
+pub (crate) trait ObjectIdentifier {
+    fn get_id(&self) -> ObjectID;
+}
