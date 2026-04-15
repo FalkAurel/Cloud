@@ -16,7 +16,7 @@ pub trait Storage: Send + Sync {
 
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq)]
-pub (crate) struct ObjectID(UUID);
+pub (crate) struct ObjectID(Uuid);
 
 pub (crate) trait ObjectIdentifier {
     fn get_id(&self) -> ObjectID;
