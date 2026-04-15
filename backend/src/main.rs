@@ -3,7 +3,7 @@ extern crate rocket;
 #[cfg(feature = "email")]
 use backend::init_email_sender;
 use backend::{
-    EmailSenderConfig, S3StorageDevice, TRACE_LEVEL, init_db,
+    S3StorageDevice, TRACE_LEVEL, init_db,
     routes::{delete_user_request, login_request, logout_request, me_request, signup_request},
 };
 
@@ -101,6 +101,8 @@ async fn build_rocket(server_config: Config) -> Rocket<rocket::Build> {
 
     #[cfg(feature = "email")]
     {
+        use backend::EmailSenderConfig;
+
         let config: EmailSenderConfig = init_email_sender().unwrap();
         rocket = rocket.manage(config.sender).manage(config.sender_address);
     }
