@@ -21,3 +21,7 @@ pub (crate) struct ObjectID(Uuid);
 pub (crate) trait ObjectIdentifier {
     fn get_id(&self) -> ObjectID;
 }
+
+
+mod s3;
+pub use s3::S3StorageDevice;
