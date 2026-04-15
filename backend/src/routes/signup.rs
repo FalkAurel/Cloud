@@ -6,8 +6,8 @@ use crate::database::{ReadOnly, Transactional};
 use argon2::PasswordHasher;
 use argon2::password_hash::{SaltString, rand_core::OsRng};
 use rocket::http::Status;
-use rocket::tokio::task::JoinHandle;
 use rocket::serde::json::Json;
+use rocket::tokio::task::JoinHandle;
 use rocket::{State, post, tokio};
 use sqlx::Transaction;
 use sqlx::{MySql, Pool};
@@ -62,14 +62,20 @@ mod email_const {
                 if let Err(err) = revert_signup(&raw_email, &db).await {
                     error!(error=%err, "Failed to revert signup after email failure");
                 }
-                Err((Status::InternalServerError, "Failed to send confirmation email"))
+                Err((
+                    Status::InternalServerError,
+                    "Failed to send confirmation email",
+                ))
             }
             Err(err) => {
                 error!(error = %err, "Failed to send email, reverting signup");
                 if let Err(err) = revert_signup(&raw_email, &db).await {
                     error!(error=%err, "Failed to revert signup after email failure");
                 }
-                Err((Status::InternalServerError, "Failed to send confirmation email"))
+                Err((
+                    Status::InternalServerError,
+                    "Failed to send confirmation email",
+                ))
             }
         }
     }
@@ -135,15 +141,17 @@ async fn persist_user(
     password: &str,
     db: &Pool<MySql>,
 ) -> Result<(), (Status, &'static str)> {
-    let name_fixed: FixedSizedStr<MAX_UTF8_BYTES> = FixedSizedStr::new_from_str(name).map_err(|err| {
-        error!(error = %err, "Signup: name exceeds max length after validation");
-        (Status::InternalServerError, "Internal server error")
-    })?;
+    let name_fixed: FixedSizedStr<MAX_UTF8_BYTES> =
+        FixedSizedStr::new_from_str(name).map_err(|err| {
+            error!(error = %err, "Signup: name exceeds max length after validation");
+            (Status::InternalServerError, "Internal server error")
+        })?;
 
-    let email_fixed: FixedSizedStr<MAX_UTF8_BYTES> = FixedSizedStr::new_from_str(email).map_err(|err| {
-        error!(error = %err, "Signup: email exceeds max length after validation");
-        (Status::InternalServerError, "Internal server error")
-    })?;
+    let email_fixed: FixedSizedStr<MAX_UTF8_BYTES> =
+        FixedSizedStr::new_from_str(email).map_err(|err| {
+            error!(error = %err, "Signup: email exceeds max length after validation");
+            (Status::InternalServerError, "Internal server error")
+        })?;
 
     let salt_string: SaltString = SaltString::generate(&mut OsRng);
     let password: String = password.to_owned();

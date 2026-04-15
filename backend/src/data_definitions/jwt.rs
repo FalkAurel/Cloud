@@ -56,7 +56,7 @@ static JWT_SECRET: LazyLock<EncodingKey> = LazyLock::new(|| {
 
 #[derive(Serialize, Deserialize)]
 pub struct JWT {
-    pub(crate) exp: u64,      // in millis — see module doc for rationale
+    pub(crate) exp: u64, // in millis — see module doc for rationale
     pub(crate) user_id: i32,
 }
 

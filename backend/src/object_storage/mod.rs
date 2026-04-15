@@ -1,22 +1,22 @@
 use rocket::tokio::io::{AsyncBufRead, AsyncRead};
+use std::{error::Error, future::Future, pin::Pin};
+use uuid::Uuid;
 
 pub trait Storage: Send + Sync {
-    type Success: ObjectIdentifier;
-    type Error;
-    type ResourceHandle: AsyncBufRead;
+    fn store<'b>(
+        &'b self,
+        object: &'b mut (dyn AsyncRead + Unpin + Send + 'b),
+    ) -> Pin<Box<dyn Future<Output = Result<ObjectID, Box<dyn Error>>> + Send + 'b>>;
 
-    fn store(&self, object: &mut (dyn AsyncRead + Unpin)) -> impl Future<Output = Result<Self::Success, Self::Error>> + Send;
-    fn retrieve(&self, object: &dyn ObjectIdentifier) -> impl Future<Output = Result<Self::ResourceHandle, Self::Error>> + Send;
+    fn retrieve<'b>(
+        &'b self,
+        object: ObjectID,
+    ) -> Pin<Box<dyn Future<Output = Result<Box<dyn AsyncBufRead>, Box<dyn Error>>> + Send + 'b>>;
 }
-
-type UUID = [u8; 16];
 
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq)]
-pub (crate) struct ObjectID(UUID);
-
-pub (crate) trait ObjectIdentifier {
-    fn get_id(&self) -> ObjectID;
-}
+pub struct ObjectID(Uuid);
 
 mod s3;
+pub use s3::S3StorageDevice;

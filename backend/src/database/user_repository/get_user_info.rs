@@ -29,16 +29,18 @@ impl ReadOnly for GetUserInfo {
             None => None,
             Some(row) => Some(StandardUserView {
                 id: row.get("id"),
-                name: FixedSizedStr::new_from_str(row.get::<&str, _>("name"))
-                    .map_err(|e| sqlx::Error::ColumnDecode {
+                name: FixedSizedStr::new_from_str(row.get::<&str, _>("name")).map_err(|e| {
+                    sqlx::Error::ColumnDecode {
                         index: "name".to_string(),
                         source: Box::new(e),
-                    })?,
-                email: FixedSizedStr::new_from_str(row.get::<&str, _>("email"))
-                    .map_err(|e| sqlx::Error::ColumnDecode {
+                    }
+                })?,
+                email: FixedSizedStr::new_from_str(row.get::<&str, _>("email")).map_err(|e| {
+                    sqlx::Error::ColumnDecode {
                         index: "email".to_string(),
                         source: Box::new(e),
-                    })?,
+                    }
+                })?,
                 is_admin: row.get("is_admin"),
                 created_at: row.get("created_at"),
                 modified_at: row.get("modified_at"),
