@@ -19,8 +19,8 @@ CREATE TABLE IF NOT EXISTS files (
     modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_files_user_id ON files USING BTREE (user_id);
-CREATE INDEX IF NOT EXISTS idx_files_parent ON files USING BTREE (parent);
+CREATE INDEX IF NOT EXISTS idx_files_user_id ON files (user_id) USING BTREE;
+CREATE INDEX IF NOT EXISTS idx_files_parent ON files (parent) USING BTREE;
 
 CREATE TABLE IF NOT EXISTS user_groups (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS group_members (
     PRIMARY KEY (group_id, user_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_group_members_user_id ON group_members USING BTREE (user_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_user_id ON group_members (user_id) USING BTREE;
 
 -- To create the first admin, sign up via the API then run:
 -- UPDATE users SET is_admin = TRUE WHERE email = 'your@email.com';
