@@ -28,6 +28,7 @@ pub enum FileMetaError {
     MissingXFolder,
     InvalidXFolderValue,
     InvalidContentType,
+    InvalidCombination,
 }
 
 impl<'a> FromRequest<'a> for FileMetaData<'a> {
@@ -92,6 +93,10 @@ impl<'a> FromRequest<'a> for FileMetaData<'a> {
                 None => return Outcome::Error((Status::BadRequest, FileMetaError::MissingXFolder)),
             };
 
+            if is_folder && size > 0 {
+                return Outcome::Error((Status::BadRequest, FileMetaError::InvalidCombination));
+            }
+
             // Content-Type
             if !request
                 .content_type()
@@ -136,13 +141,17 @@ pub async fn upload(
                 meta_data.is_folder,
             );
 
+            let cleanup = || async move {
+                if let Err(del_err) = storage.delete(object_identifier).await {
+                    error!(user_id = jwt.user_id, error = %del_err, "Failed to delete orphaned MinIO object");
+                }
+            };
+
             let mut transaction: Transaction<MySql> = match db.begin().await {
                 Ok(tx) => tx,
                 Err(err) => {
                     error!(user_id = jwt.user_id, error = %err, "Failed to begin transaction");
-                    if let Err(del_err) = storage.delete(object_identifier).await {
-                        error!(user_id = jwt.user_id, error = %del_err, "Failed to delete orphaned MinIO object");
-                    }
+                    cleanup().await;
                     return Err((Status::InternalServerError, "Failed to save file metadata"));
                 }
             };
@@ -154,18 +163,14 @@ pub async fn upload(
                     error!(user_id = jwt.user_id, error = %rb_err, "Rollback failed");
                 }
 
-                if let Err(del_err) = storage.delete(object_identifier).await {
-                    error!(user_id = jwt.user_id, error = %del_err, "Failed to delete orphaned MinIO object");
-                }
+                cleanup().await;
 
                 return Err((Status::InternalServerError, "Failed to save file metadata"));
             }
 
             if let Err(err) = transaction.commit().await {
                 error!(user_id = jwt.user_id, error = %err, "Failed to commit transaction");
-                if let Err(del_err) = storage.delete(object_identifier).await {
-                    error!(user_id = jwt.user_id, error = %del_err, "Failed to delete orphaned MinIO object after commit failure");
-                }
+                cleanup().await;
                 return Err((Status::InternalServerError, "Failed to save file metadata"));
             }
 
