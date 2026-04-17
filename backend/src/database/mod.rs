@@ -20,7 +20,7 @@ pub async fn init_db() -> Pool<MySql> {
 
 pub(crate) trait ReadOnly {
     type Success;
-    type Error;
+    type Error: std::fmt::Debug + std::fmt::Display + Send;
 
     fn read(
         &self,
@@ -29,8 +29,8 @@ pub(crate) trait ReadOnly {
 }
 
 pub(crate) trait Transactional {
-    type Success;
-    type Error;
+    type Success: Send;
+    type Error: std::fmt::Debug + std::fmt::Display + Send;
 
     fn execute<'t>(
         &self,
@@ -39,3 +39,4 @@ pub(crate) trait Transactional {
 }
 
 pub(crate) mod user_repository;
+pub(crate) mod virtual_filesystem;

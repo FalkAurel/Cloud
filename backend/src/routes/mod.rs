@@ -10,3 +10,4 @@ pub use login::login as login_request;
 pub use logout::logout as logout_request;
 pub use me::me as me_request;
 pub use signup::signup as signup_request;
+pub use upload::upload as upload_request;

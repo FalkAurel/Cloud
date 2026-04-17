@@ -4,7 +4,10 @@ extern crate rocket;
 use backend::init_email_sender;
 use backend::{
     S3StorageDevice, TRACE_LEVEL, init_db,
-    routes::{delete_user_request, login_request, logout_request, me_request, signup_request},
+    routes::{
+        delete_user_request, login_request, logout_request, me_request, signup_request,
+        upload_request,
+    },
 };
 
 use rocket::{Config, Rocket};
@@ -94,7 +97,8 @@ async fn build_rocket(server_config: Config) -> Rocket<rocket::Build> {
                 logout_request,
                 signup_request,
                 me_request,
-                delete_user_request
+                delete_user_request,
+                upload_request
             ],
         )
         .attach(cors);
