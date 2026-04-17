@@ -33,7 +33,7 @@ pub async fn upload(
     match storage.store(&mut stream).await {
         Ok(object_identifier) => {
             info!(user_id = auth.get_jwt().user_id, "Upload successful");
-
+            
             Ok(Status::Ok)
         }
         Err(e) => {
