@@ -9,7 +9,7 @@ COPY Cargo.toml Cargo.toml
 COPY Cargo.lock Cargo.lock
 
 RUN adduser -D -H -s /sbin/nologin -u 10001 production_user
-RUN cargo build --release
+RUN cargo build --release && strip target/release/backend
 
 FROM scratch
 
