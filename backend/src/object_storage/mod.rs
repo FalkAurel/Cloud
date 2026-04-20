@@ -12,7 +12,7 @@ pub trait Storage: Send + Sync {
         &'b self,
         object: ObjectID,
     ) -> Pin<
-        Box<dyn Future<Output = Result<Box<dyn AsyncBufRead>, Box<dyn Error + Send>>> + Send + 'b>,
+        Box<dyn Future<Output = Result<Box<dyn AsyncBufRead + Send>, Box<dyn Error + Send>>> + Send + 'b>,
     >;
 
     fn delete<'b>(
@@ -114,7 +114,7 @@ pub(crate) mod mock_storage {
             Box<
                 dyn Future<
                         Output = Result<
-                            Box<dyn tokio::io::AsyncBufRead>,
+                            Box<dyn tokio::io::AsyncBufRead + Send>,
                             Box<dyn std::error::Error + Send>,
                         >,
                     > + Send
@@ -124,7 +124,7 @@ pub(crate) mod mock_storage {
             Box::pin(async {
                 if IS_ALWAYS_SUCCESSFUL {
                     Ok(Box::new(MockStorageAsyncReader)
-                        as Box<dyn rocket::tokio::io::AsyncBufRead>)
+                        as Box<dyn rocket::tokio::io::AsyncBufRead + Send>)
                 } else {
                     Err(Box::new(MockStorageError) as Box<dyn Error + Send>)
                 }

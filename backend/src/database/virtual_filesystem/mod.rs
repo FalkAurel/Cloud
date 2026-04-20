@@ -3,11 +3,13 @@ use uuid::Uuid;
 use crate::database::{
     ReadOnly, Transactional,
     virtual_filesystem::{
-        create_file::CreateFile, create_folder::CreateFolder, list_files::ListFiles,
+        create_file::CreateFile, create_folder::CreateFolder, get_file::GetFile,
+        list_files::ListFiles,
     },
 };
 
-pub (crate) use list_files::FileRow;
+pub(crate) use get_file::FileEntry;
+pub(crate) use list_files::FileRow;
 
 pub struct VirtualFileSystem;
 
@@ -37,8 +39,16 @@ impl VirtualFileSystem {
     ) -> impl ReadOnly<Success = Vec<FileRow>, Error = sqlx::Error> {
         ListFiles::new(user_id, parent_id)
     }
+
+    pub fn get_file(
+        file_id: Uuid,
+        user_id: i32,
+    ) -> impl ReadOnly<Success = Option<FileEntry>, Error = sqlx::Error> {
+        GetFile::new(file_id, user_id)
+    }
 }
 
 mod create_file;
 mod create_folder;
+mod get_file;
 mod list_files;
