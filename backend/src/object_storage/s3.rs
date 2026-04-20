@@ -9,6 +9,11 @@ use rocket::tokio::io::{AsyncBufRead, AsyncRead, AsyncReadExt};
 use tokio_util::io::StreamReader;
 use uuid::Uuid;
 
+fn to_send_error(e: impl Error + Send + 'static) -> Box<dyn Error + Send> {
+    Box::new(e)
+}
+
+#[derive(Debug)]
 pub struct S3StorageDevice {
     client: Client,
     bucket: String,
@@ -73,7 +78,7 @@ impl Storage for S3StorageDevice {
     fn store<'b>(
         &'b self,
         object: &'b mut (dyn AsyncRead + Unpin + Send + 'b),
-    ) -> Pin<Box<dyn Future<Output = Result<ObjectID, Box<dyn Error>>> + Send + 'b>> {
+    ) -> Pin<Box<dyn Future<Output = Result<ObjectID, Box<dyn Error + Send>>> + Send + 'b>> {
         Box::pin(async move {
             const CHUNK_SIZE: usize = 8 * 1024 * 1024; // 8 MiB — above S3 minimum multipart size
             let mut buffer: Vec<u8> = vec![0u8; CHUNK_SIZE];
@@ -92,7 +97,7 @@ impl Storage for S3StorageDevice {
                                 break;
                             }
                         }
-                        Err(err) => return Err(err.into()),
+                        Err(err) => return Err(to_send_error(err)),
                     }
                 }
 
@@ -110,7 +115,7 @@ impl Storage for S3StorageDevice {
                     .send()
                     .await
                 {
-                    return Err(err.into());
+                    return Err(to_send_error(err));
                 }
 
                 if filled < CHUNK_SIZE {
@@ -125,8 +130,9 @@ impl Storage for S3StorageDevice {
     fn retrieve<'b>(
         &'b self,
         object: ObjectID,
-    ) -> Pin<Box<dyn Future<Output = Result<Box<dyn AsyncBufRead>, Box<dyn Error>>> + Send + 'b>>
-    {
+    ) -> Pin<
+        Box<dyn Future<Output = Result<Box<dyn AsyncBufRead>, Box<dyn Error + Send>>> + Send + 'b>,
+    > {
         let object_name: String = object.0.to_string();
         Box::pin(async move {
             match self
@@ -136,11 +142,27 @@ impl Storage for S3StorageDevice {
                 .await
             {
                 Ok(resp) => {
-                    let (stream, _) = resp.content.to_stream().await?;
+                    let (stream, _) = resp.content.to_stream().await.map_err(to_send_error)?;
                     Ok(Box::new(StreamReader::new(stream)) as Box<dyn AsyncBufRead>)
                 }
-                Err(err) => Err(err.into()),
+                Err(err) => Err(to_send_error(err)),
             }
+        })
+    }
+
+    fn delete<'b>(
+        &'b self,
+        object: ObjectID,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error + Send>>> + Send + 'b>> {
+        let object_name: String = object.0.to_string();
+
+        Box::pin(async {
+            self.client
+                .delete_object(&self.bucket, object_name)
+                .send()
+                .await
+                .map_err(to_send_error)?;
+            Ok(())
         })
     }
 }

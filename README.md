@@ -105,6 +105,7 @@ All application routes are versioned under `/v1`. The `/health` endpoint is unve
 | `POST` | `/v1/logout` | Clear JWT cookie | Yes |
 | `GET` | `/v1/me` | Get current user profile | Yes |
 | `DELETE` | `/v1/users/:id` | Delete a user account | Yes |
+| `POST` | `/v1/upload` | Upload a file or create a folder | Yes |
 
 ### POST /v1/signup
 
@@ -154,6 +155,38 @@ Responses: `200 OK`, `401 Unauthorized`
 Requires a valid `jwt` cookie. A user may delete their own account. Admins may delete any account.
 
 Responses: `204 No Content`, `401 Unauthorized`, `500 Internal Server Error`
+
+### POST /v1/upload
+
+Requires a valid `jwt` cookie. Uploads a file to object storage and records metadata, or creates a virtual folder entry.
+
+**Headers:**
+
+| Header | Required | Description |
+| --- | --- | --- |
+| `Content-Type` | Yes | Must be `application/octet-stream` |
+| `Content-Length` | Yes | Size of the body in bytes |
+| `X-Filename` | Yes | Name of the file or folder |
+| `X-IsFolder` | Yes | `true`/`1` for folder, `false`/`0` for file |
+| `X-ParentUuid` | No | UUID of the parent folder; omit for root |
+
+**Constraints:** `X-IsFolder: true` requires `Content-Length: 0` (folders carry no body).
+
+**Success response `201 Created`:**
+
+```json
+{ "id": "550e8400-e29b-41d4-a716-446655440000" }
+```
+
+**Error responses:**
+
+| Status | Condition |
+| --- | --- |
+| `400 Bad Request` | Missing/invalid header, folder with non-zero size, invalid parent UUID |
+| `401 Unauthorized` | Missing or invalid JWT |
+| `411 Length Required` | `Content-Length` header absent |
+| `415 Unsupported Media Type` | `Content-Type` is not `application/octet-stream` |
+| `500 Internal Server Error` | Storage or database failure |
 
 ## Database Schema
 
