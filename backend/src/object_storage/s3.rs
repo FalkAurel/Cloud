@@ -13,6 +13,7 @@ fn to_send_error(e: impl Error + Send + 'static) -> Box<dyn Error + Send> {
     Box::new(e)
 }
 
+#[derive(Debug)]
 pub struct S3StorageDevice {
     client: Client,
     bucket: String,

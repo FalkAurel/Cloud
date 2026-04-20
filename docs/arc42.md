@@ -149,14 +149,14 @@ Die Cloud Storage Platform ist eine selbst gehostete, private Cloud-Lösung, die
 
 **`routes/`**
 
-| Modul | Route | Methode | Beschreibung |
-|-------|-------|---------|-------------|
-| `signup.rs` | `/v1/signup` | POST | Registrierung mit E-Mail-Bestätigung |
-| `login.rs` | `/v1/login` | POST | Authentifizierung, JWT-Cookie setzen |
-| `logout.rs` | `/v1/logout` | POST | JWT-Cookie löschen |
-| `me.rs` | `/v1/me` | GET | Aktuelles Benutzerprofil |
-| `delete_user.rs` | `/v1/users/:id` | DELETE | Benutzer löschen (selbst oder Admin) |
-| `upload.rs` | `/v1/upload` | POST | Datei-Upload zu MinIO |
+| Modul | Route | Methode | Auth | Request | Erfolg | Fehler |
+| ----- | ----- | ------- | ---- | ------- | ------ | ------ |
+| `signup.rs` | `/v1/signup` | POST | Nein | JSON `{ name, email, password }` | `201 Created` | `400`, `409`, `500` |
+| `login.rs` | `/v1/login` | POST | Nein | JSON `{ email, password }` | `200 OK` + JWT-Cookie | `401`, `500` |
+| `logout.rs` | `/v1/logout` | POST | Ja | – | `200 OK`, Cookie gelöscht | `400`, `401` |
+| `me.rs` | `/v1/me` | GET | Ja | – | `200 OK` + JSON `{ name, email, is_admin }` | `400`, `401`, `500` |
+| `delete_user.rs` | `/v1/users/:id` | DELETE | Ja | – | `204 No Content` | `400`, `401`, `500` |
+| `upload.rs` | `/v1/upload` | POST | Ja | Headers: `Content-Length`, `X-Filename`, `X-IsFolder`, `X-ParentUuid` (opt.) + Binär-Body | `201 Created` + JSON `{ id: UUID }` | `400`, `401`, `411`, `415`, `500` |
 
 **`data_definitions/`**
 
@@ -228,7 +228,7 @@ Browser          Nginx          Backend           MariaDB         MinIO
   │                │                │◄───────────────────────────── │
   │                │                │─INSERT file───►│              │
   │                │                │◄───────────────│              │
-  │◄───────────────────200 OK───────│                │              │
+  │◄───────────────────201 Created─────│                │              │
 ```
 
 ### 6.4 Szenario: JWT-Ablauf-Prüfung (Frontend)
@@ -334,7 +334,7 @@ Zwei separate VS Code DevContainer-Konfigurationen:
 | Backend-Routes | HTTP-Statuscodes (201, 204, 400, 401, 409, 500) |
 | Datenbank | SQLx-Fehlertypen, Transaktions-Rollback |
 | E-Mail-Versand | Retry-Logik (3 Versuche, 30s Wartezeit); bei Fehler → User-Rollback |
-| MinIO-Upload | Fehler-Response, aber **kein automatisches Rollback** bei DB-Fehler danach |
+| MinIO-Upload | Fehler-Response; bei DB-Fehler nach Upload → S3-Objekt wird gelöscht (Kompensation); bei Commit-Fehler ebenso |
 | Frontend | Pinia-Zustand, BaseNotification-Komponente (Toast-ähnlich) |
 
 ### 8.4 Logging & Observability
@@ -428,7 +428,7 @@ Alle Endpunkte unter dem Präfix `/v1/` für Rückwärtskompatibilität.
 
 | Risiko / Schuld | Schwere | Beschreibung | Empfehlung |
 |----------------|---------|-------------|------------|
-| **Orphaned MinIO-Objekte** | Mittel | Bei DB-Fehler nach erfolgreichem MinIO-Upload entstehen verwaiste Objekte | Sagas/Kompensations-Transaktionen oder MinIO-Lifecycle-Policies |
+| **Orphaned MinIO-Objekte** | Niedrig | S3-Objekt wird bei DB- oder Commit-Fehler kompensatorisch gelöscht; Löschen selbst kann noch fehlschlagen (geloggt als WARN) | MinIO-Lifecycle-Policies als zusätzliches Safety-Net |
 | **Kein Datei-Download** | Hoch | Upload-Endpunkt existiert, Download fehlt | `GET /v1/files/:id` mit MinIO Presigned URLs implementieren |
 | **Kein Datei-Löschen** | Hoch | Dateien können nicht gelöscht werden | `DELETE /v1/files/:id` inkl. MinIO-Objekt-Löschung |
 | **Gruppen nicht implementiert** | Niedrig | Schema existiert, Logik fehlt | Sharing-Funktionalität auf Basis der Gruppenstruktur aufbauen |

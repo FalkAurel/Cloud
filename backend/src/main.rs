@@ -3,7 +3,7 @@ extern crate rocket;
 #[cfg(feature = "email")]
 use backend::init_email_sender;
 use backend::{
-    S3StorageDevice, TRACE_LEVEL, init_db,
+    S3StorageDevice, Storage, TRACE_LEVEL, init_db,
     routes::{
         delete_user_request, login_request, logout_request, me_request, signup_request,
         upload_request,
@@ -76,9 +76,6 @@ async fn build_rocket(server_config: Config) -> Rocket<rocket::Build> {
         allowed_origins.push(origin);
     }
 
-    // #[cfg(debug_assertions)]
-    // allowed_origins.push("http://localhost:5173".to_string());
-
     let allowed_refs: Vec<&str> = allowed_origins.iter().map(String::as_str).collect();
 
     let cors: rocket_cors::Cors = CorsOptions::default()
@@ -112,8 +109,11 @@ async fn build_rocket(server_config: Config) -> Rocket<rocket::Build> {
     }
 
     let storage: S3StorageDevice = S3StorageDevice::from_env().await;
+    dbg!(&storage);
 
-    rocket = rocket.manage(init_db().await).manage(storage);
+    rocket = rocket
+        .manage(init_db().await)
+        .manage(Box::new(storage) as Box<dyn Storage>);
 
     rocket
 }
