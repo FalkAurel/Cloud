@@ -1,5 +1,4 @@
 use rocket::tokio::io::{AsyncBufRead, AsyncRead};
-use serde::Serialize;
 use std::{error::Error, future::Future, pin::Pin};
 use uuid::Uuid;
 
@@ -57,7 +56,7 @@ pub(crate) mod mock_storage {
 
         fn poll_fill_buf(
             self: std::pin::Pin<&mut Self>,
-            cx: &mut std::task::Context<'_>,
+            _cx: &mut std::task::Context<'_>,
         ) -> std::task::Poll<std::io::Result<&[u8]>> {
             panic!("This is only mock device. You are not supposed to consume it!")
         }
