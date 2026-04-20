@@ -5,8 +5,8 @@ use backend::init_email_sender;
 use backend::{
     S3StorageDevice, Storage, TRACE_LEVEL, init_db,
     routes::{
-        delete_user_request, login_request, logout_request, me_request, signup_request,
-        upload_request,
+        delete_user_request, list_files_request, login_request, logout_request, me_request,
+        signup_request, upload_request,
     },
 };
 
@@ -95,7 +95,8 @@ async fn build_rocket(server_config: Config) -> Rocket<rocket::Build> {
                 signup_request,
                 me_request,
                 delete_user_request,
-                upload_request
+                upload_request,
+                list_files_request
             ],
         )
         .attach(cors);
@@ -109,7 +110,7 @@ async fn build_rocket(server_config: Config) -> Rocket<rocket::Build> {
     }
 
     let storage: S3StorageDevice = S3StorageDevice::from_env().await;
-    dbg!(&storage);
+    tracing::info!("S3 storage initialized");
 
     rocket = rocket
         .manage(init_db().await)

@@ -11,7 +11,7 @@ use rocket::tokio::task::JoinHandle;
 use rocket::{State, post, tokio};
 use sqlx::Transaction;
 use sqlx::{MySql, Pool};
-use tracing::{error, warn};
+use tracing::{error, instrument, warn};
 
 const MIN_PASSWORD_LENGTH: u8 = 8;
 const MAX_PASSWORD_LENGTH: u8 = MAX_UTF8_BYTES as u8;
@@ -198,6 +198,7 @@ async fn persist_user(
 }
 
 #[cfg(feature = "email")]
+#[instrument(skip(db, email_sender, sender_address, signup_request))]
 #[post("/signup", format = "json", data = "<signup_request>")]
 pub async fn signup(
     signup_request: Json<UserSignupRequest<'_>>,
@@ -259,6 +260,7 @@ pub async fn signup(
 }
 
 #[cfg(not(feature = "email"))]
+#[instrument(skip(db, signup_request))]
 #[post("/signup", format = "json", data = "<signup_request>")]
 pub async fn signup(
     signup_request: Json<UserSignupRequest<'_>>,

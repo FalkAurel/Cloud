@@ -1,4 +1,5 @@
 mod delete_user;
+mod files;
 mod login;
 mod logout;
 mod me;
@@ -6,6 +7,7 @@ mod signup;
 mod upload;
 
 pub use delete_user::delete as delete_user_request;
+pub use files::list_files as list_files_request;
 pub use login::login as login_request;
 pub use logout::logout as logout_request;
 pub use me::me as me_request;
