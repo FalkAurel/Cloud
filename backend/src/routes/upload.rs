@@ -245,10 +245,10 @@ async fn create_file(
 ) -> Result<ObjectID, sqlx::Error> {
 
     VirtualFileSystem::create_file(
-        object_identifier.0, 
-        jwt.user_id, 
-        meta_data.name, 
-        meta_data.size, 
+        object_identifier.0,
+        jwt.user_id,
+        meta_data.name,
+        meta_data.size,
         meta_data.parent_id
     ).execute(transaction).await?;
 
