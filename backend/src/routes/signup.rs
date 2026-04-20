@@ -260,7 +260,7 @@ pub async fn signup(
 }
 
 #[cfg(not(feature = "email"))]
-#[instrument(skip(db))]
+#[instrument(skip(db, signup_request))]
 #[post("/signup", format = "json", data = "<signup_request>")]
 pub async fn signup(
     signup_request: Json<UserSignupRequest<'_>>,
