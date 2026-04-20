@@ -4,16 +4,11 @@ use rocket::{
 };
 
 use crate::data_definitions::Auth;
-use function_name::named;
-use tracing::{Span, info_span, span::Entered};
+use tracing::instrument;
 
-#[named]
+#[instrument(skip(cookies))]
 #[post("/logout")]
-#[tracing::instrument(skip(cookies))]
 pub async fn logout(_jwt: Auth, cookies: &CookieJar<'_>) -> Result<Status, (Status, &'static str)> {
-    let span: Span = info_span!(function_name!());
-    let _guard: Entered = span.enter();
-
     cookies.remove("jwt");
     Ok(Status::Ok)
 }

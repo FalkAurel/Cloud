@@ -17,7 +17,7 @@ use rocket::{
 
 use serde::Serialize;
 use sqlx::{MySql, Pool, Transaction};
-use tracing::{error, info, warn};
+use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
 #[derive(Serialize)]
@@ -32,6 +32,7 @@ pub struct ErrorResponse {
     error: &'static str,
 }
 
+#[derive(Debug)]
 pub struct FileMetaData<'a> {
     pub(crate) size: u64,
     pub(crate) name: &'a str,
@@ -151,6 +152,7 @@ impl<'a> FromRequest<'a> for FileMetaData<'a> {
     }
 }
 
+#[instrument(skip(data, db, storage))]
 #[post("/upload", data = "<data>")]
 pub async fn upload(
     auth: Auth,

@@ -85,6 +85,7 @@ impl Storage for S3StorageDevice {
             let uuid: Uuid = Uuid::new_v4();
             let object_name: String = uuid.to_string();
 
+            let mut is_first_chunk = true;
             loop {
                 // Fill the buffer before uploading to minimise syscalls and network round trips
                 let mut filled: usize = 0;
@@ -105,16 +106,23 @@ impl Storage for S3StorageDevice {
                     break;
                 }
 
-                if let Err(err) = self
-                    .client
-                    .append_object_content(
-                        &self.bucket,
-                        object_name.clone(),
-                        ObjectContent::from(buffer[..filled].to_vec()),
-                    )
-                    .send()
-                    .await
-                {
+                let content: ObjectContent = ObjectContent::from(buffer[..filled].to_vec());
+                let result: Result<(), minio::s3::error::Error> = if is_first_chunk {
+                    is_first_chunk = false;
+                    self.client
+                        .put_object_content(&self.bucket, object_name.clone(), content)
+                        .send()
+                        .await
+                        .map(|_| ())
+                } else {
+                    self.client
+                        .append_object_content(&self.bucket, object_name.clone(), content)
+                        .send()
+                        .await
+                        .map(|_| ())
+                };
+
+                if let Err(err) = result {
                     return Err(to_send_error(err));
                 }
 

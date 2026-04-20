@@ -2,7 +2,7 @@ FROM rust:alpine AS builder
 
 WORKDIR /app
 
-RUN apk add --no-cache build-base cmake perl musl-dev
+RUN apk add --no-cache build-base cmake perl musl-dev pkgconfig openssl-dev openssl-libs-static
 
 COPY ./src ./src
 COPY Cargo.toml Cargo.toml

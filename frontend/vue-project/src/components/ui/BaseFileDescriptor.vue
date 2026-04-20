@@ -1,6 +1,10 @@
 <template>
-  <div class="file-descriptor">
-    <div class="file-actions">
+  <div
+    class="file-descriptor"
+    :class="{ folder: is_folder }"
+    @click="is_folder ? emit('open-folder') : undefined"
+  >
+    <div class="file-actions" @click.stop>
       <button class="icon-btn" title="Download">
         <DownloadIcon />
       </button>
@@ -12,16 +16,18 @@
       </button>
     </div>
 
-    <div class="file-header">
-      <div class="file-icon">
-        <img v-if="returnIcon(fileName).includes('.svg')" :src="returnIcon(fileName)" />
-        <span v-else>{{ returnIcon(fileName) }}</span>
+    <div class="file-header" :class="{ 'folder-header': is_folder }">
+      <div class="file-icon" :class="{ 'folder-icon': is_folder }">
+        <img v-if="returnIcon().includes('.svg')" :src="returnIcon()" />
+        <span v-else>{{ returnIcon() }}</span>
       </div>
-      <div class="file-name">{{ fileName }}</div>
+      <div class="file-name">
+        <span>{{ fileName }}</span>
+      </div>
     </div>
 
     <div class="file-meta">
-      <div class="meta-row">
+      <div class="meta-row" v-if="!is_folder">
         <span class="label">Size</span>
         <span class="value">{{ returnBytesFormated(fileSize) }}</span>
       </div>
@@ -33,6 +39,7 @@
         <span class="label">Modified</span>
         <span class="value">{{ returnDateFormated(last_modified_at) }}</span>
       </div>
+      <div v-if="is_folder" class="open-hint">Click to open →</div>
     </div>
   </div>
 </template>
@@ -47,19 +54,21 @@ import ShareIcon from '@/assets/icons/share.svg?component'
 import TrashIcon from '@/assets/icons/trash.svg?component'
 import { returnBytesFormated } from '@/utils/format'
 
-
 interface FileProps {
   fileName: string
-  fileSize: number // in Bytes
-  created_at: number // A timestamp representing the creation date in milliseconds
-  last_modified_at: number // A timestamp representing the last modified date in milliseconds
+  fileSize: number
+  created_at: number
+  last_modified_at: number
   type: string
+  is_folder: boolean
 }
 
-defineProps<FileProps>()
+const props = defineProps<FileProps>()
+const emit = defineEmits<{ 'open-folder': [] }>()
 
-function returnIcon(fileName: string): string {
-  const extension = fileName.split('.').pop()
+function returnIcon(): string {
+  if (props.is_folder) return '🗂️'
+  const extension = props.fileName.split('.').pop()
   switch (extension) {
     case 'txt':
       return '📄'
@@ -74,7 +83,7 @@ function returnIcon(fileName: string): string {
     case 'avi':
       return '🎥'
     default:
-      return '📁'
+      return '📄'
   }
 }
 
@@ -86,18 +95,9 @@ function returnDateFormated(date: number): string {
   const hours = Math.floor(diff / (1000 * 60 * 60))
   const days = Math.floor(diff / (1000 * 60 * 60 * 24))
 
-  if (minutes < 60) {
-    return plurals(minutes, 'minute')
-  }
-
-  if (hours < 24) {
-    return plurals(hours, 'hour')
-  }
-
-  if (days < 30) {
-    return plurals(days, 'day')
-  }
-
+  if (minutes < 60) return plurals(minutes, 'minute')
+  if (hours < 24) return plurals(hours, 'hour')
+  if (days < 30) return plurals(days, 'day')
   return new Date(date).toLocaleDateString()
 }
 
@@ -107,19 +107,18 @@ function plurals(value: number, unit: string): string {
 </script>
 
 <style scoped>
+/* ── Base card ───────────────────────────────────────────── */
 .file-descriptor {
   position: relative;
   display: flex;
   flex-direction: column;
-
   width: 200px;
-
   background: white;
   border: 1px solid #dde3ed;
   border-radius: 4px;
   border-top: 3px solid #003580;
-
   transition: box-shadow 0.15s ease, transform 0.15s ease;
+  overflow: hidden;
 }
 
 .file-descriptor:hover {
@@ -127,6 +126,37 @@ function plurals(value: number, unit: string): string {
   transform: translateY(-2px);
 }
 
+/* ── Folder variant ──────────────────────────────────────── */
+.file-descriptor.folder {
+  cursor: pointer;
+  border-top-color: #f59e0b;
+}
+
+.file-descriptor.folder:hover {
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.2);
+}
+
+/* Folder "tab" shape — a notch cut from top-left corner */
+.file-descriptor.folder::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 56px;
+  height: 6px;
+  background: #f59e0b;
+  border-radius: 0 0 6px 0;
+}
+
+.folder-header {
+  background: #fffbeb;
+}
+
+.folder-icon {
+  background: #fde68a !important;
+}
+
+/* ── File header ─────────────────────────────────────────── */
 .file-header {
   display: flex;
   flex-direction: column;
@@ -150,17 +180,35 @@ function plurals(value: number, unit: string): string {
   width: 26px;
 }
 
+/* ── Scrolling filename ──────────────────────────────────── */
 .file-name {
   font-weight: 600;
   font-size: 13px;
   color: #003580;
-  max-width: 160px;
+  width: 160px;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
 }
 
+.file-name span {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* Scroll the text left to reveal the full name on hover.
+   min(0px, calc(160px - 100%)) moves only if text overflows:
+   if span is 250px wide → shifts -90px; if ≤160px → stays at 0. */
+.file-descriptor:hover .file-name span {
+  animation: scroll-name 3s ease-in-out 0.4s infinite alternate;
+}
+
+@keyframes scroll-name {
+  from { transform: translateX(0); }
+  to   { transform: translateX(min(0px, calc(160px - 100%))); }
+}
+
+/* ── Meta ────────────────────────────────────────────────── */
 .file-meta {
   padding: 0 16px 12px;
   font-size: 11px;
@@ -168,7 +216,8 @@ function plurals(value: number, unit: string): string {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  border-bottom: 1px solid #f0f4f9;
+  border-top: 1px solid #f0f4f9;
+  margin-top: 4px;
 }
 
 .meta-row {
@@ -185,6 +234,21 @@ function plurals(value: number, unit: string): string {
   font-weight: 500;
 }
 
+.open-hint {
+  font-size: 10px;
+  color: #f59e0b;
+  font-weight: 600;
+  text-align: right;
+  margin-top: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.file-descriptor.folder:hover .open-hint {
+  opacity: 1;
+}
+
+/* ── Action buttons ──────────────────────────────────────── */
 .file-actions {
   position: absolute;
   top: 8px;

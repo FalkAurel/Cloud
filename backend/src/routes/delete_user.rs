@@ -4,8 +4,9 @@ use crate::{
 };
 use rocket::{State, delete, http::Status};
 use sqlx::{MySql, Pool, Transaction};
-use tracing::{error, info, warn};
+use tracing::{error, info, instrument, warn};
 
+#[instrument(skip(db))]
 #[delete("/users/<id>")]
 pub async fn delete(
     id: i32,
