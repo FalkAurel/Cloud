@@ -3,7 +3,7 @@ use sqlx::{MySql, Pool};
 use tracing::{error, info, instrument, warn};
 
 use crate::{
-    data_definitions::{Auth, StandardUserView},
+    data_definitions::{Auth, StandardUserView, id::ID},
     database::{ReadOnly, user_repository::UserRepository},
 };
 
@@ -13,21 +13,21 @@ pub async fn me(
     jwt: Auth,
     db: &State<Pool<MySql>>,
 ) -> Result<(Status, Json<StandardUserView>), (Status, &'static str)> {
-    let user_id: i32 = jwt.0.user_id;
+    let user_id: ID = jwt.0.user_id;
 
-    info!(user_id = user_id, "Fetching current user profile");
+    info!(user_id = %user_id, "Fetching current user profile");
 
     match UserRepository::get_user_info(user_id).read(db).await {
         Ok(Some(user)) => {
-            info!(user_id = user_id, "User profile fetched successfully");
+            info!(user_id = %user_id, "User profile fetched successfully");
             Ok((Status::Ok, Json(user)))
         }
         Ok(None) => {
-            warn!(user_id = user_id, "User ID from JWT not found in database");
+            warn!(user_id = %user_id, "User ID from JWT not found in database");
             Err((Status::Unauthorized, "User not found"))
         }
         Err(e) => {
-            error!(user_id = user_id, error = %e, "Database error while fetching user");
+            error!(user_id = %user_id, error = %e, "Database error while fetching user");
             Err((Status::InternalServerError, "Internal server error"))
         }
     }
@@ -35,6 +35,8 @@ pub async fn me(
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZero;
+
     use rocket::http::{ContentType, Cookie, Status as HttpStatus};
     use rocket::local::asynchronous::Client;
     use rocket::routes;
@@ -48,7 +50,7 @@ mod tests {
 
     use super::*;
 
-    async fn get_user_id(client: &Client, email: &str) -> i32 {
+    async fn get_user_id(client: &Client, email: &str) -> ID {
         let db = client.rocket().state::<Pool<MySql>>().unwrap();
         UserRepository::get_login_view(email)
             .read(db)
@@ -75,7 +77,7 @@ mod tests {
             .dispatch()
             .await;
 
-        let user_id: i32 = get_user_id(&client, email).await;
+        let user_id: ID = get_user_id(&client, email).await;
         let token: String = JWT::create(user_id, TOKEN_LIFETIME).unwrap();
 
         let response = client
@@ -124,7 +126,7 @@ mod tests {
     async fn me_returns_401_for_nonexistent_user() {
         let client = build_test_client(&routes![me]).await;
         // Use a user_id that does not exist in the database
-        let token = JWT::create(i32::MAX, TOKEN_LIFETIME).unwrap();
+        let token = JWT::create(ID(NonZero::new(u32::MAX).unwrap()), TOKEN_LIFETIME).unwrap();
 
         let response = client
             .get("/me")

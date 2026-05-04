@@ -34,6 +34,8 @@ pub(crate) mod test_harness_setup {
     use rocket::{Route, local::asynchronous::Client};
     use sqlx::{MySql, Pool};
 
+    use crate::data_definitions::id::ID;
+
     pub(crate) async fn build_test_client(routes: &[Route]) -> Client {
         #[cfg(feature = "email")]
         {
@@ -63,7 +65,7 @@ pub(crate) mod test_harness_setup {
     pub(crate) async fn cleanup_user_by_email(pool: &Pool<MySql>, email: &str) {
         use crate::database::{ReadOnly, Transactional, user_repository::UserRepository};
 
-        let id: i32 = UserRepository::get_login_view(email)
+        let id: ID = UserRepository::get_login_view(email)
             .read(pool)
             .await
             .unwrap()

@@ -77,15 +77,15 @@ impl S3StorageDevice {
 impl Storage for S3StorageDevice {
     fn store<'b>(
         &'b self,
+        id: ObjectID,
         object: &'b mut (dyn AsyncRead + Unpin + Send + 'b),
-    ) -> Pin<Box<dyn Future<Output = Result<ObjectID, Box<dyn Error + Send>>> + Send + 'b>> {
+    ) -> Pin<Box<dyn Future<Output = Result<(), Box<dyn Error + Send>>> + Send + 'b>> {
         Box::pin(async move {
             const CHUNK_SIZE: usize = 8 * 1024 * 1024; // 8 MiB — above S3 minimum multipart size
             let mut buffer: Vec<u8> = vec![0u8; CHUNK_SIZE];
-            let uuid: Uuid = Uuid::new_v4();
-            let object_name: String = uuid.to_string();
+            let object_name: String = id.0.0.to_string();
 
-            let mut is_first_chunk = true;
+            let mut is_first_chunk: bool = true;
             loop {
                 // Fill the buffer before uploading to minimise syscalls and network round trips
                 let mut filled: usize = 0;
@@ -131,7 +131,7 @@ impl Storage for S3StorageDevice {
                 }
             }
 
-            Ok(ObjectID(uuid))
+            Ok(())
         })
     }
 

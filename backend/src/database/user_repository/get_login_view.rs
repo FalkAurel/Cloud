@@ -68,10 +68,10 @@ mod tests {
         let pool = init_db().await;
         let email = "loginview@test.com";
         setup(&pool, email).await;
-        let result = GetLoginView::new(email).read(&pool).await.unwrap();
+        let result: Option<crate::data_definitions::UserLoginView> =
+            GetLoginView::new(email).read(&pool).await.unwrap();
         assert!(result.is_some());
-        let view = result.unwrap();
-        assert!(view.id > 0);
+        let view: crate::data_definitions::UserLoginView = result.unwrap();
         assert!(!view.password_hash.is_empty());
         cleanup(&pool, email).await;
     }

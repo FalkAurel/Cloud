@@ -1,5 +1,5 @@
 use crate::{
-    data_definitions::{Auth, JWT, StandardUserView},
+    data_definitions::{Auth, JWT, StandardUserView, id::ID},
     database::{ReadOnly, Transactional, user_repository::UserRepository},
 };
 use rocket::{State, delete, http::Status};
@@ -9,7 +9,7 @@ use tracing::{error, info, instrument, warn};
 #[instrument(skip(db))]
 #[delete("/users/<id>")]
 pub async fn delete(
-    id: i32,
+    id: ID,
     auth: Auth,
     db: &State<Pool<MySql>>,
 ) -> Result<Status, (Status, &'static str)> {
@@ -25,7 +25,7 @@ pub async fn delete(
         Ok(Some(StandardUserView {
             is_admin: false, ..
         })) => {
-            info!(user=%jwt.user_id, target_user=%id, "Unauthorized deletion attempt.");
+            info!(user=%jwt.user_id, target_user=%&id, "Unauthorized deletion attempt.");
             Err((
                 Status::Unauthorized,
                 "Unauthorized: you do not have permission to perform this action.",
@@ -50,7 +50,7 @@ pub async fn delete(
     }
 }
 
-async fn delete_user(id: i32, db: &Pool<MySql>) -> Result<Status, (Status, &'static str)> {
+async fn delete_user(id: ID, db: &Pool<MySql>) -> Result<Status, (Status, &'static str)> {
     // Start transaction
     let mut transaction: Transaction<MySql> = match db.begin().await {
         Ok(tx) => tx,
@@ -97,6 +97,8 @@ async fn delete_user(id: i32, db: &Pool<MySql>) -> Result<Status, (Status, &'sta
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZero;
+
     use rocket::http::{ContentType, Cookie, Status as HttpStatus};
     use rocket::local::asynchronous::Client;
     use rocket::routes;
@@ -104,6 +106,7 @@ mod tests {
 
     use crate::TOKEN_LIFETIME;
     use crate::data_definitions::JWT;
+    use crate::data_definitions::id::ID;
     use crate::database::ReadOnly;
     use crate::database::user_repository::UserRepository;
     use crate::routes::{delete_user_request, signup_request};
@@ -121,7 +124,7 @@ mod tests {
             .await;
     }
 
-    async fn get_id(client: &Client, email: &str) -> i32 {
+    async fn get_id(client: &Client, email: &str) -> ID {
         let db = client.rocket().state::<Pool<MySql>>().unwrap();
         UserRepository::get_login_view(email)
             .read(db)
@@ -231,7 +234,7 @@ mod tests {
         let victim_id = get_id(&client, victim_email).await;
 
         // JWT references a user that does not exist in the DB
-        let token = JWT::create(i32::MAX, TOKEN_LIFETIME).unwrap();
+        let token = JWT::create(ID(NonZero::new(u32::MAX).unwrap()), TOKEN_LIFETIME).unwrap();
 
         let response = client
             .delete(format!("/users/{}", victim_id))

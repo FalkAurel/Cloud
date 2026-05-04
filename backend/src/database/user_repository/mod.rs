@@ -4,6 +4,7 @@ mod email_exists;
 mod get_login_view;
 mod get_user_info;
 
+use crate::data_definitions::id::ID;
 use crate::data_definitions::{
     FixedSizedStr, MAX_UTF8_BYTES, StandardUserView, UserCreationView, UserLoginView,
 };
@@ -24,7 +25,7 @@ impl UserRepository {
         CreateUser::new(user, hashed_pw)
     }
 
-    pub fn delete(user_id: i32) -> impl Transactional<Success = (), Error = sqlx::Error> {
+    pub fn delete(user_id: ID) -> impl Transactional<Success = (), Error = sqlx::Error> {
         DeleteUser::new(user_id)
     }
 
@@ -39,7 +40,7 @@ impl UserRepository {
     }
 
     pub fn get_user_info(
-        user_id: i32,
+        user_id: ID,
     ) -> impl ReadOnly<Success = Option<StandardUserView>, Error = sqlx::Error> {
         GetUserInfo::new(user_id)
     }

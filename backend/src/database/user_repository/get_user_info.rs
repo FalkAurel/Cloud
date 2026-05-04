@@ -1,12 +1,13 @@
 use sqlx::{MySql, Pool, Row};
 
+use crate::data_definitions::id::ID;
 use crate::data_definitions::{FixedSizedStr, StandardUserView};
 use crate::database::ReadOnly;
 
-pub(super) struct GetUserInfo(i32);
+pub(super) struct GetUserInfo(ID);
 
 impl GetUserInfo {
-    pub const fn new(user_id: i32) -> Self {
+    pub const fn new(user_id: ID) -> Self {
         Self(user_id)
     }
 }
@@ -21,7 +22,7 @@ impl ReadOnly for GetUserInfo {
 
     async fn read(&self, pool: &Pool<MySql>) -> Result<Self::Success, Self::Error> {
         let row = sqlx::query(USER_INFO)
-            .bind(self.0)
+            .bind(&self.0)
             .fetch_optional(pool)
             .await?;
 
@@ -53,10 +54,12 @@ impl ReadOnly for GetUserInfo {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZero;
+
     use sqlx::{MySql, Pool};
 
     use crate::{
-        data_definitions::{FixedSizedStr, MAX_UTF8_BYTES, UserCreationView},
+        data_definitions::{FixedSizedStr, MAX_UTF8_BYTES, UserCreationView, id::ID},
         database::{ReadOnly, Transactional, user_repository::UserRepository},
         init_db,
         test_harness_setup::cleanup_user_by_email,
@@ -64,7 +67,7 @@ mod tests {
 
     use super::GetUserInfo;
 
-    async fn setup(pool: &Pool<MySql>, email: &str) -> i32 {
+    async fn setup(pool: &Pool<MySql>, email: &str) -> ID {
         let name = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str("test").unwrap();
         let email_str = FixedSizedStr::<MAX_UTF8_BYTES>::new_from_str(email).unwrap();
         let user = UserCreationView::new(&name, &email_str);
@@ -105,7 +108,7 @@ mod tests {
     async fn returns_none_for_nonexistent_id() {
         let pool: Pool<MySql> = init_db().await;
         assert!(
-            GetUserInfo::new(i32::MAX)
+            GetUserInfo::new(ID(NonZero::new(u32::MAX).unwrap()))
                 .read(&pool)
                 .await
                 .unwrap()
