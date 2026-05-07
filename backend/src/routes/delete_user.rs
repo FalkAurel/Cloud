@@ -137,7 +137,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn user_can_delete_themselves() {
-        let client = build_test_client(&routes![signup_request, delete_user_request]).await;
+        let client = build_test_client::<true>(&routes![signup_request, delete_user_request]).await;
         let email = "selfdelete@example.com";
         signup(&client, "Self Delete", email, "password123").await;
 
@@ -156,7 +156,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn returns_401_without_jwt() {
-        let client = build_test_client(&routes![delete_user_request]).await;
+        let client = build_test_client::<true>(&routes![delete_user_request]).await;
 
         let response = client.delete("/users/1").dispatch().await;
 
@@ -166,16 +166,17 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn non_admin_cannot_delete_other_user() {
-        let client = build_test_client(&routes![signup_request, delete_user_request]).await;
-        let attacker_email = "attacker@example.com";
-        let victim_email = "victim@example.com";
+        let client: Client =
+            build_test_client::<true>(&routes![signup_request, delete_user_request]).await;
+        let attacker_email: &str = "attacker@example.com";
+        let victim_email: &str = "victim@example.com";
 
         signup(&client, "Attacker", attacker_email, "password123").await;
         signup(&client, "Victim", victim_email, "password123").await;
 
-        let attacker_id = get_id(&client, attacker_email).await;
-        let victim_id = get_id(&client, victim_email).await;
-        let token = JWT::create(attacker_id, TOKEN_LIFETIME).unwrap();
+        let attacker_id: ID = get_id(&client, attacker_email).await;
+        let victim_id: ID = get_id(&client, victim_email).await;
+        let token: String = JWT::create(attacker_id, TOKEN_LIFETIME).unwrap();
 
         let response = client
             .delete(format!("/users/{}", victim_id))
@@ -193,7 +194,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn admin_can_delete_other_user() {
-        let client = build_test_client(&routes![signup_request, delete_user_request]).await;
+        let client = build_test_client::<true>(&routes![signup_request, delete_user_request]).await;
         let admin_email = "admin_del@example.com";
         let target_email = "target_del@example.com";
 
@@ -227,11 +228,12 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn returns_401_for_nonexistent_jwt_user() {
-        let client = build_test_client(&routes![signup_request, delete_user_request]).await;
-        let victim_email = "victim2@example.com";
+        let client: Client =
+            build_test_client::<true>(&routes![signup_request, delete_user_request]).await;
+        let victim_email: &str = "victim2@example.com";
 
         signup(&client, "Victim2", victim_email, "password123").await;
-        let victim_id = get_id(&client, victim_email).await;
+        let victim_id: ID = get_id(&client, victim_email).await;
 
         // JWT references a user that does not exist in the DB
         let token = JWT::create(ID(NonZero::new(u32::MAX).unwrap()), TOKEN_LIFETIME).unwrap();

@@ -183,10 +183,13 @@ pub async fn upload(
         }
     };
 
+    dbg!(&meta_data);
+
     let object_id: ObjectID = if meta_data.is_folder {
         create_folder(&jwt, &meta_data, &mut transaction)
             .await
-            .map_err(|_| {
+            .map_err(|err| {
+                tracing::error!(err=%err);
                 (
                     Status::InternalServerError,
                     Json(ErrorResponse {
@@ -197,7 +200,8 @@ pub async fn upload(
     } else {
         let id: ObjectID = create_file(&jwt, &meta_data, &mut transaction)
             .await
-            .map_err(|_| {
+            .map_err(|err| {
+                tracing::error!(err=%err);
                 (
                     Status::InternalServerError,
                     Json(ErrorResponse {
@@ -274,7 +278,6 @@ async fn create_file(
 mod tests {
     use std::num::NonZero;
 
-    use rocket::Rocket;
     use rocket::http::{ContentType, Cookie, Header, Status as HttpStatus};
     use rocket::local::asynchronous::Client;
     use rocket::routes;
@@ -286,21 +289,15 @@ mod tests {
     use crate::data_definitions::id::ID;
     use crate::database::ReadOnly;
     use crate::database::user_repository::UserRepository;
-    use crate::init_db;
-    use crate::object_storage::mock_storage::MockStorage;
-    use crate::test_harness_setup::cleanup_user_by_email;
-
-    async fn build_client<const SUCCESS: bool>() -> Client {
-        let storage: Box<dyn crate::object_storage::Storage> = Box::new(MockStorage::<SUCCESS>);
-        let rocket = Rocket::build()
-            .mount("/", routes![upload])
-            .manage(init_db().await)
-            .manage(storage);
-        Client::tracked(rocket).await.unwrap()
-    }
+    use crate::test_harness_setup::{build_test_client, cleanup_user_by_email};
 
     // Inserts a user directly via SQL — avoids the email-feature guard on the signup route.
     async fn create_test_user(pool: &Pool<MySql>, email: &str) -> String {
+        sqlx::query("DELETE FROM users WHERE email = ?")
+            .bind(email)
+            .execute(pool)
+            .await
+            .unwrap();
         sqlx::query("INSERT INTO users (name, email, password) VALUES (?, ?, ?)")
             .bind("Upload Test")
             .bind(email)
@@ -308,7 +305,7 @@ mod tests {
             .execute(pool)
             .await
             .unwrap();
-        let id = UserRepository::get_login_view(email)
+        let id: ID = UserRepository::get_login_view(email)
             .read(pool)
             .await
             .unwrap()
@@ -322,7 +319,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JWT_SECRET env var"]
     async fn upload_returns_401_without_jwt() {
-        let client = build_client::<true>().await;
+        let client: Client = build_test_client::<true>(&routes![upload]).await;
 
         let response = client
             .post("/upload")
@@ -340,7 +337,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JWT_SECRET env var"]
     async fn upload_returns_411_without_content_length() {
-        let client: Client = build_client::<true>().await;
+        let client: Client = build_test_client::<true>(&routes![upload]).await;
         let token: String = JWT::create(ID(NonZero::new(1).unwrap()), TOKEN_LIFETIME).unwrap();
 
         let response = client
@@ -359,7 +356,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JWT_SECRET env var"]
     async fn upload_returns_400_without_filename() {
-        let client: Client = build_client::<true>().await;
+        let client: Client = build_test_client::<true>(&routes![upload]).await;
         let token: String = JWT::create(ID(NonZero::new(1).unwrap()), TOKEN_LIFETIME).unwrap();
 
         let response = client
@@ -378,7 +375,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JWT_SECRET env var"]
     async fn upload_returns_400_without_x_is_folder() {
-        let client: Client = build_client::<true>().await;
+        let client: Client = build_test_client::<true>(&routes![upload]).await;
         let token: String = JWT::create(ID(NonZero::new(1).unwrap()), TOKEN_LIFETIME).unwrap();
 
         let response = client
@@ -397,7 +394,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JWT_SECRET env var"]
     async fn upload_returns_400_for_invalid_x_is_folder_value() {
-        let client: Client = build_client::<true>().await;
+        let client: Client = build_test_client::<true>(&routes![upload]).await;
         let token: String = JWT::create(ID(NonZero::new(1).unwrap()), TOKEN_LIFETIME).unwrap();
 
         let response = client
@@ -417,7 +414,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JWT_SECRET env var"]
     async fn upload_returns_415_for_wrong_content_type() {
-        let client: Client = build_client::<true>().await;
+        let client: Client = build_test_client::<true>(&routes![upload]).await;
         let token: String = JWT::create(ID(NonZero::new(1).unwrap()), TOKEN_LIFETIME).unwrap();
 
         let response = client
@@ -437,7 +434,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JWT_SECRET env var"]
     async fn upload_returns_400_for_folder_with_nonzero_size() {
-        let client: Client = build_client::<true>().await;
+        let client: Client = build_test_client::<true>(&routes![upload]).await;
         let token: String = JWT::create(ID(NonZero::new(1).unwrap()), TOKEN_LIFETIME).unwrap();
 
         let response = client
@@ -459,7 +456,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JWT_SECRET env var and database"]
     async fn upload_returns_200_for_valid_file_request() {
-        let client: Client = build_client::<true>().await;
+        let client: Client = build_test_client::<true>(&routes![upload]).await;
         let db: &Pool<MySql> = client.rocket().state::<Pool<MySql>>().unwrap();
         let email: &str = "upload_file_test@example.com";
         let token: String = create_test_user(db, email).await;
@@ -482,7 +479,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JWT_SECRET env var and database"]
     async fn upload_returns_200_for_valid_folder_request() {
-        let client: Client = build_client::<true>().await;
+        let client: Client = build_test_client::<true>(&routes![upload]).await;
         let db: &Pool<MySql> = client.rocket().state::<Pool<MySql>>().unwrap();
         let email: &str = "upload_folder_test@example.com";
         let token: String = create_test_user(db, email).await;
@@ -505,7 +502,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JWT_SECRET env var"]
     async fn upload_returns_500_when_storage_fails() {
-        let client: Client = build_client::<false>().await;
+        let client: Client = build_test_client::<true>(&routes![upload]).await;
         let token: String = JWT::create(ID(NonZero::new(1).unwrap()), TOKEN_LIFETIME).unwrap();
 
         let response = client

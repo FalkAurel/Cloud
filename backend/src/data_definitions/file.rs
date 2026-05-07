@@ -12,6 +12,7 @@ pub(crate) enum State {
     Pending,
 }
 
+
 impl TryFrom<u16> for State {
     type Error = sqlx::Error;
 

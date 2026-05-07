@@ -12,11 +12,11 @@ use ts_rs::TS;
 #[cfg_attr(feature = "export_binding", derive(TS))]
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Copy)]
 #[repr(transparent)]
-pub(crate) struct ID(pub(crate) NonZero<u32>);
+pub struct ID(pub(crate) NonZero<u32>);
 
 impl fmt::Display for ID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ID: {}", self.0)
+        write!(f, "{}", self.0)
     }
 }
 

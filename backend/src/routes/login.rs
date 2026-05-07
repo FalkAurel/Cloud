@@ -106,7 +106,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn login_returns_200_after_signup() {
-        let client: Client = build_test_client(&routes![signup_request, login_request]).await;
+        let client: Client =
+            build_test_client::<true>(&routes![signup_request, login_request]).await;
         let email: &str = "logintest@example.com";
         let password: &str = "password123";
 
@@ -137,7 +138,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn login_returns_401_for_wrong_password() {
-        let client = build_test_client(&routes![signup_request, login_request]).await;
+        let client: Client =
+            build_test_client::<true>(&routes![signup_request, login_request]).await;
         let email = "wrongpass@example.com";
 
         client
@@ -167,7 +169,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn login_returns_401_for_unknown_email() {
-        let client: Client = build_test_client(&routes![login_request]).await;
+        let client: Client = build_test_client::<true>(&routes![login_request]).await;
 
         let response = client
             .post("/login")

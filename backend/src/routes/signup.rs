@@ -399,7 +399,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn signup_returns_201_for_new_user() {
-        let client: Client = build_test_client(&routes![signup]).await;
+        let client: Client = build_test_client::<true>(&routes![signup]).await;
         let response = client
             .post("/signup")
             .header(ContentType::JSON)
@@ -417,7 +417,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn signup_returns_409_for_duplicate_email() {
-        let client = build_test_client(&routes![signup]).await;
+        let client = build_test_client::<true>(&routes![signup]).await;
         let body =
             r#"{"name":"Test User","email":"duplicate@example.com","password":"password123"}"#;
         client
@@ -444,7 +444,7 @@ mod tests {
     #[cfg(feature = "email")]
     #[ignore = "requires database"]
     async fn signup_returns_400_for_invalid_email() {
-        let client: Client = build_test_client(&routes![signup]).await;
+        let client: Client = build_test_client::<true>(&routes![signup]).await;
         let response = client
             .post("/signup")
             .header(ContentType::JSON)
@@ -457,7 +457,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn signup_returns_400_for_short_password() {
-        let client: Client = build_test_client(&routes![signup]).await;
+        let client: Client = build_test_client::<true>(&routes![signup]).await;
         let response = client
             .post("/signup")
             .header(ContentType::JSON)

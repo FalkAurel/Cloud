@@ -31,6 +31,7 @@ impl<'a> Transactional for CreateFolder<'a> {
                 .bind(self.0.get_name())
                 .bind(self.0.get_size_bytes())
                 .bind(self.0.get_parent().map(|id| id.0))
+                .bind(self.0.get_state())
                 .execute(&mut **tx)
                 .await?;
 

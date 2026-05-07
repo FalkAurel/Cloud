@@ -36,28 +36,36 @@ pub(crate) mod test_harness_setup {
 
     use crate::data_definitions::id::ID;
 
-    pub(crate) async fn build_test_client(routes: &[Route]) -> Client {
+    pub(crate) async fn build_test_client<const SHOULD_SUCCEED: bool>(routes: &[Route]) -> Client {
         #[cfg(feature = "email")]
         {
-            use rocket::Rocket;
+            use std::sync::Arc;
 
-            use crate::{data_definitions::init_email_sender, init_db};
+            use crate::{
+                Storage, data_definitions::init_email_sender, init_db, mock_storage::MockStorage,
+            };
+            use rocket::Rocket;
 
             let config = init_email_sender().unwrap();
             let rocket = Rocket::build()
                 .mount("/", routes)
                 .manage(init_db().await)
                 .manage(config.sender)
+                .manage(Arc::new(MockStorage::<SHOULD_SUCCEED>) as Arc<dyn Storage>)
                 .manage(config.sender_address);
             Client::tracked(rocket).await.unwrap()
         }
 
         #[cfg(not(feature = "email"))]
         {
-            use crate::init_db;
+            use crate::{Storage, init_db, mock_storage::MockStorage};
             use rocket::Rocket;
+            use std::sync::Arc;
 
-            let rocket = Rocket::build().mount("/", routes).manage(init_db().await);
+            let rocket: Rocket<rocket::Build> = Rocket::build()
+                .mount("/", routes)
+                .manage(init_db().await)
+                .manage(Arc::new(MockStorage::<SHOULD_SUCCEED>) as Arc<dyn Storage>);
             Client::tracked(rocket).await.unwrap()
         }
     }

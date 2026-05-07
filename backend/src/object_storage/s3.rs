@@ -7,7 +7,6 @@ use minio::s3::{
 };
 use rocket::tokio::io::{AsyncBufRead, AsyncRead, AsyncReadExt};
 use tokio_util::io::StreamReader;
-use uuid::Uuid;
 
 fn to_send_error(e: impl Error + Send + 'static) -> Box<dyn Error + Send> {
     Box::new(e)

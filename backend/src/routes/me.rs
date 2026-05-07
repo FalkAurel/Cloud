@@ -63,7 +63,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn me_returns_200_with_valid_jwt() {
-        let client: Client = build_test_client(&routes![signup_request, me]).await;
+        let client: Client = build_test_client::<true>(&routes![signup_request, me]).await;
         let email: &str = "metest@example.com";
         let password: &str = "password123";
 
@@ -99,7 +99,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn me_returns_401_without_jwt() {
-        let client: Client = build_test_client(&routes![me]).await;
+        let client: Client = build_test_client::<true>(&routes![me]).await;
 
         let response: rocket::local::asynchronous::LocalResponse<'_> =
             client.get("/me").dispatch().await;
@@ -110,7 +110,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn me_returns_400_with_invalid_jwt() {
-        let client: Client = build_test_client(&routes![me]).await;
+        let client: Client = build_test_client::<true>(&routes![me]).await;
 
         let response = client
             .get("/me")
@@ -124,7 +124,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn me_returns_401_for_nonexistent_user() {
-        let client = build_test_client(&routes![me]).await;
+        let client = build_test_client::<true>(&routes![me]).await;
         // Use a user_id that does not exist in the database
         let token = JWT::create(ID(NonZero::new(u32::MAX).unwrap()), TOKEN_LIFETIME).unwrap();
 
