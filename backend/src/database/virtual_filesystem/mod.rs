@@ -35,8 +35,16 @@ impl VirtualFileSystem {
     ) -> impl ReadOnly<Success = Vec<FileRow>, Error = sqlx::Error> {
         ListFiles::new(user_id, parent_id)
     }
+
+    pub fn get_file(
+        file_id: Uuid,
+        user_id: i32,
+    ) -> impl ReadOnly<Success = Option<FileEntry>, Error = sqlx::Error> {
+        GetFile::new(file_id, user_id)
+    }
 }
 
 mod create_file;
 mod create_folder;
+mod get_file;
 mod list_files;

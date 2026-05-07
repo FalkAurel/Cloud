@@ -138,7 +138,7 @@ impl Storage for S3StorageDevice {
         &'b self,
         object: ObjectID,
     ) -> Pin<
-        Box<dyn Future<Output = Result<Box<dyn AsyncBufRead>, Box<dyn Error + Send>>> + Send + 'b>,
+        Box<dyn Future<Output = Result<Box<dyn AsyncBufRead + Send>, Box<dyn Error + Send>>> + Send + 'b>,
     > {
         let object_name: String = object.0.to_string();
         Box::pin(async move {
@@ -150,7 +150,7 @@ impl Storage for S3StorageDevice {
             {
                 Ok(resp) => {
                     let (stream, _) = resp.content.to_stream().await.map_err(to_send_error)?;
-                    Ok(Box::new(StreamReader::new(stream)) as Box<dyn AsyncBufRead>)
+                    Ok(Box::new(StreamReader::new(stream)) as Box<dyn AsyncBufRead + Send>)
                 }
                 Err(err) => Err(to_send_error(err)),
             }

@@ -5,8 +5,8 @@ use backend::init_email_sender;
 use backend::{
     S3StorageDevice, Storage, TRACE_LEVEL, init_db,
     routes::{
-        delete_user_request, list_files_request, login_request, logout_request, me_request,
-        signup_request, upload_request,
+        delete_user_request, list_files_request, login_request,
+        logout_request, me_request, signup_request, upload_request,
     },
 };
 
