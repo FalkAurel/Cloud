@@ -3,7 +3,7 @@ use serde::{self, Deserialize, Serialize};
 #[cfg(feature = "export_binding")]
 use ts_rs::TS;
 
-use crate::data_definitions::FixedSizedStr;
+use crate::data_definitions::{FixedSizedStr, id::ID};
 
 const DB_STRING_LENGTH: usize = 40;
 pub(crate) const MAX_UTF8_BYTES: usize = DB_STRING_LENGTH * size_of::<char>();
@@ -12,7 +12,7 @@ pub(crate) const MAX_UTF8_BYTES: usize = DB_STRING_LENGTH * size_of::<char>();
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct StandardUserView {
-    pub(crate) id: i32,
+    pub(crate) id: ID,
     #[cfg_attr(feature = "export_binding", ts(type = "string"))]
     pub(crate) name: FixedSizedStr<MAX_UTF8_BYTES>,
     #[cfg_attr(feature = "export_binding", ts(type = "string"))]
@@ -68,7 +68,7 @@ pub struct UserLoginRequest<'a> {
 }
 
 pub(crate) struct UserLoginView {
-    pub(crate) id: i32,
+    pub(crate) id: ID,
     pub(crate) password_hash: String,
 }
 
@@ -82,12 +82,15 @@ pub struct UserSignupRequest<'a> {
 
 #[cfg(test)]
 mod user {
+    use std::num::NonZero;
+
     use super::StandardUserView;
     use chrono::{DateTime, Local};
     use rocket::serde::json::{self, Value, json};
 
     use crate::data_definitions::{
         FixedSizedStr,
+        id::ID,
         user::{DB_STRING_LENGTH, MAX_UTF8_BYTES},
     };
     const TEST_NAME: &'static str = "test";
@@ -97,7 +100,7 @@ mod user {
     fn serialize_user() {
         let now: DateTime<Local> = Local::now();
         let original_user = StandardUserView {
-            id: 0,
+            id: ID(NonZero::new(1).unwrap()),
             name: FixedSizedStr::new_from_str("test").unwrap(),
             email: FixedSizedStr::new_from_str("test@gmail.com").unwrap(),
             is_admin: false,
@@ -122,7 +125,7 @@ mod user {
     fn deserialize_user() {
         let now: DateTime<Local> = Local::now();
         let user_value: Value = json!(StandardUserView {
-            id: 0,
+            id: ID(NonZero::new(1).unwrap()),
             name: FixedSizedStr::new_from_str("test").unwrap(),
             email: FixedSizedStr::new_from_str("test@gmail.com").unwrap(),
             is_admin: false,
@@ -147,7 +150,7 @@ mod user {
         assert_eq!(long_name.as_bytes().len(), MAX_UTF8_BYTES);
 
         let user: StandardUserView = StandardUserView {
-            id: 0,
+            id: ID(NonZero::new(1).unwrap()),
             name: FixedSizedStr::new_from_str(&long_name).unwrap(),
             email: FixedSizedStr::new_from_str(TEST_EMAIL).unwrap(),
             is_admin: false,

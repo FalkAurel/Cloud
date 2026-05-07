@@ -28,6 +28,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use crate::data_definitions::id::ID;
 use chrono::DateTime;
 use jsonwebtoken::{
     Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode,
@@ -57,7 +58,7 @@ static JWT_SECRET: LazyLock<EncodingKey> = LazyLock::new(|| {
 #[derive(Serialize, Deserialize)]
 pub struct JWT {
     pub(crate) exp: u64, // in millis — see module doc for rationale
-    pub(crate) user_id: i32,
+    pub(crate) user_id: ID,
 }
 
 impl Debug for JWT {
@@ -76,7 +77,7 @@ pub enum DecodeError {
 }
 
 impl JWT {
-    pub fn create(user_id: i32, duration: Duration) -> Result<String, JWTError> {
+    pub fn create(user_id: ID, duration: Duration) -> Result<String, JWTError> {
         let now: Duration = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Should never fail");
@@ -170,22 +171,24 @@ impl<'a> FromRequest<'a> for Auth {
 
 #[cfg(test)]
 mod tests {
-    use std::{thread::sleep, time::Duration};
+    use std::{num::NonZero, thread::sleep, time::Duration};
 
-    use crate::data_definitions::JWT;
+    use crate::data_definitions::{JWT, id::ID};
 
     #[test]
     #[ignore = "requires JWT_SECRET env var"]
     fn create_jwt() {
-        let jwt: String = JWT::create(0, Duration::from_mins(10)).unwrap();
+        let jwt: String =
+            JWT::create(ID(NonZero::new(1).unwrap()), Duration::from_mins(10)).unwrap();
         let JWT { user_id, .. } = JWT::decode(&jwt).unwrap();
-        assert_eq!(user_id, 0);
+        assert_eq!(user_id, ID(NonZero::new(1).unwrap()));
     }
 
     #[test]
     #[ignore = "requires JWT_SECRET env var"]
     fn expired_jwt() {
-        let jwt: String = JWT::create(0, Duration::from_micros(100)).unwrap();
+        let jwt: String =
+            JWT::create(ID(NonZero::new(1).unwrap()), Duration::from_micros(100)).unwrap();
         sleep(Duration::from_millis(1));
 
         assert!(JWT::decode(&jwt).is_err())

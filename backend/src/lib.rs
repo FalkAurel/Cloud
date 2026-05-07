@@ -34,28 +34,38 @@ pub(crate) mod test_harness_setup {
     use rocket::{Route, local::asynchronous::Client};
     use sqlx::{MySql, Pool};
 
-    pub(crate) async fn build_test_client(routes: &[Route]) -> Client {
+    use crate::data_definitions::id::ID;
+
+    pub(crate) async fn build_test_client<const SHOULD_SUCCEED: bool>(routes: &[Route]) -> Client {
         #[cfg(feature = "email")]
         {
-            use rocket::Rocket;
+            use std::sync::Arc;
 
-            use crate::{data_definitions::init_email_sender, init_db};
+            use crate::{
+                Storage, data_definitions::init_email_sender, init_db, mock_storage::MockStorage,
+            };
+            use rocket::Rocket;
 
             let config = init_email_sender().unwrap();
             let rocket = Rocket::build()
                 .mount("/", routes)
                 .manage(init_db().await)
                 .manage(config.sender)
+                .manage(Arc::new(MockStorage::<SHOULD_SUCCEED>) as Arc<dyn Storage>)
                 .manage(config.sender_address);
             Client::tracked(rocket).await.unwrap()
         }
 
         #[cfg(not(feature = "email"))]
         {
-            use crate::init_db;
+            use crate::{Storage, init_db, mock_storage::MockStorage};
             use rocket::Rocket;
+            use std::sync::Arc;
 
-            let rocket = Rocket::build().mount("/", routes).manage(init_db().await);
+            let rocket: Rocket<rocket::Build> = Rocket::build()
+                .mount("/", routes)
+                .manage(init_db().await)
+                .manage(Arc::new(MockStorage::<SHOULD_SUCCEED>) as Arc<dyn Storage>);
             Client::tracked(rocket).await.unwrap()
         }
     }
@@ -63,7 +73,7 @@ pub(crate) mod test_harness_setup {
     pub(crate) async fn cleanup_user_by_email(pool: &Pool<MySql>, email: &str) {
         use crate::database::{ReadOnly, Transactional, user_repository::UserRepository};
 
-        let id: i32 = UserRepository::get_login_view(email)
+        let id: ID = UserRepository::get_login_view(email)
             .read(pool)
             .await
             .unwrap()

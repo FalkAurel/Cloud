@@ -1,11 +1,11 @@
 use sqlx::{Error, MySql, Transaction};
 
-use crate::database::Transactional;
+use crate::{data_definitions::id::ID, database::Transactional};
 
-pub(crate) struct DeleteUser(i32);
+pub(crate) struct DeleteUser(ID);
 
 impl DeleteUser {
-    pub const fn new(user_id: i32) -> Self {
+    pub const fn new(user_id: ID) -> Self {
         Self(user_id)
     }
 }
@@ -23,7 +23,7 @@ impl Transactional for DeleteUser {
         tx: &'t mut Transaction<'_, MySql>,
     ) -> Result<Self::Success, Self::Error> {
         let rows_affected = sqlx::query(DELETE_USER)
-            .bind(self.0)
+            .bind(&self.0)
             .execute(&mut **tx)
             .await?
             .rows_affected();
@@ -38,8 +38,10 @@ impl Transactional for DeleteUser {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZero;
+
     use crate::{
-        data_definitions::{FixedSizedStr, MAX_UTF8_BYTES, UserCreationView},
+        data_definitions::{FixedSizedStr, MAX_UTF8_BYTES, UserCreationView, id::ID},
         database::{
             ReadOnly, Transactional,
             user_repository::{UserRepository, create::CreateUser, delete::DeleteUser},
@@ -48,7 +50,7 @@ mod tests {
         test_harness_setup::cleanup_user_by_email,
     };
 
-    async fn get_id(pool: &sqlx::Pool<sqlx::MySql>, email: &str) -> i32 {
+    async fn get_id(pool: &sqlx::Pool<sqlx::MySql>, email: &str) -> ID {
         UserRepository::get_login_view(email)
             .read(pool)
             .await
@@ -76,7 +78,7 @@ mod tests {
         create_user.execute(&mut tx).await.unwrap();
         tx.commit().await.unwrap();
 
-        let id = get_id(&pool, email).await;
+        let id: ID = get_id(&pool, email).await;
 
         let mut tx = pool.begin().await.unwrap();
         let delete_user = DeleteUser::new(id);
@@ -89,7 +91,7 @@ mod tests {
     async fn delete_non_existent_user() {
         let pool = init_db().await;
         let mut tx = pool.begin().await.unwrap();
-        let delete_user = DeleteUser::new(i32::MAX);
+        let delete_user = DeleteUser::new(ID(NonZero::new(u32::MAX).unwrap()));
         assert!(delete_user.execute(&mut tx).await.is_err());
         assert!(tx.rollback().await.is_ok());
     }

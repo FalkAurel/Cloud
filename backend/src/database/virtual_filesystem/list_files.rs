@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
 use sqlx::Row;
-use uuid::Uuid;
 
-use crate::database::ReadOnly;
+use crate::{ObjectID, data_definitions::id::ID, database::ReadOnly};
 
 const LIST_FILES_QUERY: &str = r#"
 SELECT id, name, size_bytes, is_folder, created_at, modified_at
@@ -13,7 +12,7 @@ ORDER BY is_folder DESC, name ASC;
 "#;
 
 pub(crate) struct FileRow {
-    pub id: Uuid,
+    pub id: ID,
     pub name: String,
     pub size_bytes: u64,
     pub is_folder: bool,
@@ -22,12 +21,12 @@ pub(crate) struct FileRow {
 }
 
 pub(crate) struct ListFiles {
-    user_id: i32,
-    parent_id: Option<Uuid>,
+    user_id: ID,
+    parent_id: Option<ObjectID>,
 }
 
 impl ListFiles {
-    pub fn new(user_id: i32, parent_id: Option<Uuid>) -> Self {
+    pub fn new(user_id: ID, parent_id: Option<ObjectID>) -> Self {
         Self { user_id, parent_id }
     }
 }
@@ -39,7 +38,7 @@ impl ReadOnly for ListFiles {
     async fn read(&self, pool: &sqlx::Pool<sqlx::MySql>) -> Result<Self::Success, Self::Error> {
         let rows = sqlx::query(LIST_FILES_QUERY)
             .bind(self.user_id)
-            .bind(self.parent_id)
+            .bind(self.parent_id.map(|id| id.0))
             .fetch_all(pool)
             .await?;
 

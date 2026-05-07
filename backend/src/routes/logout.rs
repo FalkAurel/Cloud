@@ -15,6 +15,8 @@ pub async fn logout(_jwt: Auth, cookies: &CookieJar<'_>) -> Result<Status, (Stat
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZero;
+
     use rocket::http::{Cookie, Status as HttpStatus};
     use rocket::local::asynchronous::Client;
     use rocket::routes;
@@ -22,13 +24,14 @@ mod tests {
     use super::*;
     use crate::TOKEN_LIFETIME;
     use crate::data_definitions::JWT;
+    use crate::data_definitions::id::ID;
     use crate::test_harness_setup::build_test_client;
 
     #[tokio::test]
     #[ignore = "requires JWT_SECRET env var"]
     async fn logout_returns_200_and_clears_cookie() {
-        let client: Client = build_test_client(&routes![logout]).await;
-        let token: String = JWT::create(1, TOKEN_LIFETIME).unwrap();
+        let client: Client = build_test_client::<true>(&routes![logout]).await;
+        let token: String = JWT::create(ID(NonZero::new(1).unwrap()), TOKEN_LIFETIME).unwrap();
 
         let response = client
             .post("/logout")
@@ -49,7 +52,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JWT_SECRET env var"]
     async fn logout_returns_401_without_jwt() {
-        let client: Client = build_test_client(&routes![logout]).await;
+        let client: Client = build_test_client::<true>(&routes![logout]).await;
 
         let response = client.post("/logout").dispatch().await;
 
@@ -59,7 +62,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JWT_SECRET env var"]
     async fn logout_returns_400_with_invalid_jwt() {
-        let client: Client = build_test_client(&routes![logout]).await;
+        let client: Client = build_test_client::<true>(&routes![logout]).await;
 
         let response = client
             .post("/logout")

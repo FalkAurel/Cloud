@@ -1,3 +1,5 @@
+use std::num::NonZero;
+
 use argon2::{PasswordHash, PasswordVerifier};
 use rocket::http::{Cookie, CookieJar, SameSite, Status};
 use rocket::serde::json::Json;
@@ -7,6 +9,7 @@ use sqlx::{MySql, Pool};
 use tracing::instrument;
 use tracing::{Instrument, Span, error, info, info_span, span::Entered, warn};
 
+use crate::data_definitions::id::ID;
 use crate::data_definitions::{JWT, UserLoginRequest, UserLoginView};
 use crate::database::ReadOnly;
 use crate::database::user_repository::UserRepository;
@@ -34,7 +37,7 @@ pub async fn login(
                     None
                 })
                 .unwrap_or_else(|| UserLoginView {
-                    id: -1,
+                    id: ID(NonZero::new(1).unwrap()),
                     password_hash: DUMMY_HASH.to_owned(),
                 });
 
@@ -54,11 +57,11 @@ pub async fn login(
             match ARGON_2.verify_password(password.as_bytes(), &hash) {
                 Ok(_) => match JWT::create(id, TOKEN_LIFETIME) {
                     Ok(token) => {
-                        info!(id, "Login successful");
+                        info!(id=%id, "Login successful");
                         Some(token)
                     }
                     Err(err) => {
-                        error!(error = %err, id, "Failed to create JWT");
+                        error!(error = %err, id=%id, "Failed to create JWT");
                         None
                     }
                 },
@@ -103,7 +106,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn login_returns_200_after_signup() {
-        let client: Client = build_test_client(&routes![signup_request, login_request]).await;
+        let client: Client =
+            build_test_client::<true>(&routes![signup_request, login_request]).await;
         let email: &str = "logintest@example.com";
         let password: &str = "password123";
 
@@ -134,7 +138,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn login_returns_401_for_wrong_password() {
-        let client = build_test_client(&routes![signup_request, login_request]).await;
+        let client: Client =
+            build_test_client::<true>(&routes![signup_request, login_request]).await;
         let email = "wrongpass@example.com";
 
         client
@@ -164,7 +169,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires database"]
     async fn login_returns_401_for_unknown_email() {
-        let client: Client = build_test_client(&routes![login_request]).await;
+        let client: Client = build_test_client::<true>(&routes![login_request]).await;
 
         let response = client
             .post("/login")

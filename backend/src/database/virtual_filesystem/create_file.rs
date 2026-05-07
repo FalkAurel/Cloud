@@ -1,41 +1,29 @@
-use crate::database::Transactional;
-use sqlx::error::Error;
-use uuid::Uuid;
+use std::num::NonZero;
+
+use crate::{
+    ObjectID,
+    data_definitions::{
+        file::{EntryDraft, File},
+        id::ID,
+    },
+    database::Transactional,
+};
+use sqlx::{error::Error, mysql::MySqlQueryResult};
 
 const CREATE_FILE_QUERY: &str = r#"
-INSERT INTO files (id, user_id, name, size_bytes, parent_id, is_folder) VALUES (?, ?, ?, ?, ?, ?);
+INSERT INTO files (user_id, name, size_bytes, parent_id, status) VALUES (?, ?, ?, ?, ?);
 "#;
 
-pub(crate) struct CreateFile<'a> {
-    id: Uuid,
-    user_id: i32,
-    name: &'a str,
-    size_bytes: u64,
-    parent_id: Option<Uuid>,
-    is_folder: bool,
-}
+pub(crate) struct CreateFile<'a>(&'a EntryDraft<'a, File>);
 
 impl<'a> CreateFile<'a> {
-    pub fn new(
-        id: Uuid,
-        user_id: i32,
-        name: &'a str,
-        size_bytes: u64,
-        parent_id: Option<Uuid>,
-    ) -> Self {
-        Self {
-            id,
-            user_id,
-            name,
-            size_bytes,
-            parent_id,
-            is_folder: false,
-        }
+    pub fn new(file: &'a EntryDraft<'a, File>) -> Self {
+        Self(file)
     }
 }
 
 impl<'a> Transactional for CreateFile<'a> {
-    type Success = ();
+    type Success = ObjectID;
     type Error = Error;
 
     fn execute<'t>(
@@ -43,16 +31,21 @@ impl<'a> Transactional for CreateFile<'a> {
         tx: &'t mut sqlx::Transaction<'_, sqlx::MySql>,
     ) -> impl Future<Output = Result<Self::Success, Self::Error>> + Send {
         async {
-            sqlx::query(CREATE_FILE_QUERY)
-                .bind(self.id)
-                .bind(self.user_id)
-                .bind(self.name)
-                .bind(self.size_bytes)
-                .bind(self.parent_id)
-                .bind(self.is_folder)
+            let row: MySqlQueryResult = sqlx::query(CREATE_FILE_QUERY)
+                .bind(self.0.get_user())
+                .bind(self.0.get_name())
+                .bind(self.0.get_size_bytes())
+                .bind(self.0.get_parent().map(|id| id.0))
+                .bind(self.0.get_state())
                 .execute(&mut **tx)
-                .await
-                .map(|_| ())
+                .await?;
+
+            let id: NonZero<u32> = u32::try_from(row.last_insert_id())
+                .ok()
+                .and_then(NonZero::new)
+                .ok_or_else(|| sqlx::Error::Protocol("Invalid insert ID".to_string()))?;
+
+            Ok(ObjectID(ID(id)))
         }
     }
 }
